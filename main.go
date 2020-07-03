@@ -67,6 +67,11 @@ func Run(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	fmt.Printf("Config:\n")
+	fmt.Printf("  petasos-endpoint: %s\n", petasosURL.String())
+	fmt.Printf("  talaria-endpoint: %s\n", publicTalariaURL.String())
+	fmt.Printf("\n")
+
 	// Echo instance
 	e := echo.New()
 
