@@ -24,9 +24,9 @@ var port *string
 var publicTalariaEndpoint *string
 var petasosEndpoint *string
 
-// if fixed scheme is set talaria
+// When fixedScheme is set talaria
 // redirects will use this scheme.
-// If falls the scheme of the ortiginal request is used
+// If false, the scheme of the ortiginal request is used
 var fixedScheme *string
 
 func init() {
@@ -132,6 +132,9 @@ func Run(cmd *cobra.Command, args []string) {
 }
 
 func forwarder(c echo.Context) error {
+	fmt.Printf("\n\n##############################\n\n")
+	fmt.Printf("\n\n###### Request Start #########\n\n")
+	fmt.Printf("\n\n##############################\n\n")
 	// prepare request for forwarding
 	req := c.Request()
 
@@ -141,6 +144,18 @@ func forwarder(c echo.Context) error {
 		originalRequestScheme = req.Header.Get("X-Forwarded-Proto")
 	}
 	fmt.Printf("originalScheme [%s]\n", originalRequestScheme)
+
+	// Change protocols from ws(s) => http(s).
+	// Parodus makes requests to `ws` but complains
+	// when getting a redirect containing `ws`.
+	switch originalRequestScheme {
+	case "ws":
+		fmt.Printf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "http")
+		originalRequestScheme = "http"
+	case "wss":
+		fmt.Printf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "https")
+		originalRequestScheme = "https"
+	}
 
 	dump, err := httputil.DumpRequest(req, true)
 	if err != nil {
@@ -219,8 +234,9 @@ func forwarder(c echo.Context) error {
 		// TODO: use scheme from publicTalariaURL and make fixedScheme bool
 		// locationUrl.Scheme = publicTalariaURL.Scheme
 		locationUrl.Scheme = *fixedScheme
+	} else {
+		locationUrl.Scheme = originalRequestScheme
 	}
-	locationUrl.Scheme = originalRequestScheme
 	locationUrl.Host = publicTalariaURL.Host
 	//locationUrl.Path = publicTalariaURL.Path
 	c.Response().Header().Set("Location", locationUrl.String())
