@@ -2,17 +2,15 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
-	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
-	"regexp"
-	"strings"
 	"time"
 
+	"github.com/avast/retry-go"
+	"github.com/benchkram/errz"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -28,6 +26,9 @@ var petasosEndpoint *string
 // redirects will use this scheme.
 // If false, the scheme of the ortiginal request is used
 var fixedScheme *string
+
+var logFormat *string // json or plain text
+var logLevel *string  // zerolog log level
 
 func init() {
 	// port to listen for incoming requests
@@ -49,7 +50,20 @@ func init() {
 
 	fixedScheme = rootCmd.PersistentFlags().String(
 		"fixed-scheme", "",
-		`If set all redirects will use this scheme [http, https]`,
+		`If set, all redirects will use this scheme [http, https]`,
+	)
+	logFormat = rootCmd.PersistentFlags().String(
+		"log", "json",
+		`Log output format [json, text]`,
+	)
+
+	logLevel = rootCmd.PersistentFlags().String(
+		"log-level", "debug",
+		fmt.Sprintf("[%s,%s,%s]",
+			zerolog.InfoLevel.String(),
+			zerolog.DebugLevel.String(),
+			zerolog.ErrorLevel.String(),
+		),
 	)
 }
 
@@ -58,203 +72,58 @@ var petasosURL *url.URL
 
 var rootCmd = &cobra.Command{
 	Use:   "petasos-rewriter",
-	Short: "",
+	Short: "Request middleware implemented as `gateway`",
 	Long:  ``,
-	Run:   Run,
-}
+	Run: func(cmd *cobra.Command, args []string) {
+		logging()
 
-func Run(cmd *cobra.Command, args []string) {
-
-	// Init peasos URL
-	var err error
-	petasosURL, err = url.Parse(*petasosEndpoint)
-	if err != nil {
-		log.Error().Msg(err.Error())
-		os.Exit(1)
-	}
-
-	publicTalariaURL, err = url.Parse(*publicTalariaEndpoint)
-	if err != nil {
-		log.Error().Msg(err.Error())
-		os.Exit(1)
-	}
-
-	if !(*fixedScheme == "" || *fixedScheme == "http" || *fixedScheme == "https") {
-		log.Error().Msg(fmt.Errorf("Invalid Scheme [%s]", *fixedScheme).Error())
-		os.Exit(1)
-	}
-
-	fmt.Printf("Config:\n")
-	fmt.Printf("  petasos-endpoint: %s\n", petasosURL.String())
-	fmt.Printf("  talaria-endpoint: %s\n", publicTalariaURL.String())
-	fmt.Printf("  fixed-scheme:     %s\n", *fixedScheme)
-	fmt.Printf("\n\n")
-
-	time.Sleep(10 * time.Second)
-	fmt.Printf("Checking if petasos is reachable\n")
-
-	// check if petasos is reachable
-	client := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-	req, err := http.NewRequest("GET", petasosURL.String(), nil)
-	if err != nil {
-		log.Error().Msg(err.Error())
-		os.Exit(1)
-	}
-	req.Header.Set("X-Webpa-Device-Name", "mac:223344556677")
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Error().Msg(err.Error())
-		os.Exit(1)
-	}
-	dump, err := httputil.DumpResponse(resp, true)
-	if err != nil {
-		log.Error().Msg(err.Error())
-		os.Exit(1)
-	}
-	fmt.Printf("%q", dump)
-
-	// Echo instance
-	e := echo.New()
-
-	// Middleware
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
-
-	// Routes
-	e.GET("/*", forwarder)
-
-	// Start server
-	e.Logger.Fatal(e.Start(":" + *port))
-}
-
-func forwarder(c echo.Context) error {
-	fmt.Printf("\n\n##############################\n\n")
-	fmt.Printf("\n\n###### Request Start #########\n\n")
-	fmt.Printf("\n\n##############################\n\n")
-	// prepare request for forwarding
-	req := c.Request()
-
-	// store scheme of original request
-	originalRequestScheme := req.URL.Scheme
-	if originalRequestScheme == "" {
-		originalRequestScheme = req.Header.Get("X-Forwarded-Proto")
-	}
-	fmt.Printf("originalScheme [%s]\n", originalRequestScheme)
-
-	// Change protocols from ws(s) => http(s).
-	// Parodus makes requests to `ws` but complains
-	// when getting a redirect containing `ws`.
-	switch originalRequestScheme {
-	case "ws":
-		fmt.Printf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "http")
-		originalRequestScheme = "http"
-	case "wss":
-		fmt.Printf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "https")
-		originalRequestScheme = "https"
-	}
-
-	dump, err := httputil.DumpRequest(req, true)
-	if err != nil {
-		log.Error().Msg(err.Error())
-		os.Exit(1)
-	}
-	fmt.Printf("Dumping original request to petasos-rewriter\n")
-	fmt.Printf("%s", dump)
-	fmt.Printf("\n\n")
-
-	req.URL = &url.URL{
-		Scheme: petasosURL.Scheme,
-		Host:   petasosURL.Host,
-		Path:   req.URL.Path,
-	}
-	req.RequestURI = ""
-
-	// forward to real petasos
-	client := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	dump, err = httputil.DumpRequest(req, true)
-	if err != nil {
-		log.Error().Msg(err.Error())
-		os.Exit(1)
-	}
-	fmt.Printf("Dumping request to real petasos\n")
-	fmt.Printf("%s", dump)
-	fmt.Printf("\n\n")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-
-	dump, err = httputil.DumpResponse(resp, true)
-	if err != nil {
-		log.Error().Msg(err.Error())
-		os.Exit(1)
-	}
-	fmt.Printf("Dumping response from real petasos\n")
-	fmt.Printf("%s", dump)
-	fmt.Printf("\n\n")
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	for k, v := range resp.Header {
-		var header string
-		for _, s := range v {
-			if header != "" {
-				header = header + ","
-			}
-			header = header + s
+		var err error
+		petasosURL, err = url.Parse(*petasosEndpoint)
+		if err != nil {
+			log.Error().Msg(err.Error())
+			os.Exit(1)
 		}
-		header = strings.TrimRight(header, ",")
-		c.Response().Header().Set(k, header)
 
-		fmt.Printf("k: %s, v: %s\n", k, v)
-	}
+		publicTalariaURL, err = url.Parse(*publicTalariaEndpoint)
+		if err != nil {
+			log.Error().Msg(err.Error())
+			os.Exit(1)
+		}
 
-	// Replace location header
-	location := c.Response().Header().Get("Location")
-	fmt.Printf("Location [%s]\n", location)
-	locationUrl, err := url.Parse(location)
-	if err != nil {
-		return err
-	}
+		if !(*fixedScheme == "" || *fixedScheme == "http" || *fixedScheme == "https") {
+			log.Error().Msg(fmt.Errorf("Invalid Scheme [%s]", *fixedScheme).Error())
+			os.Exit(1)
+		}
 
-	if *fixedScheme != "" {
-		// TODO: use scheme from publicTalariaURL and make fixedScheme bool
-		// locationUrl.Scheme = publicTalariaURL.Scheme
-		locationUrl.Scheme = *fixedScheme
-	} else {
-		locationUrl.Scheme = originalRequestScheme
-	}
-	locationUrl.Host = publicTalariaURL.Host
-	//locationUrl.Path = publicTalariaURL.Path
-	c.Response().Header().Set("Location", locationUrl.String())
+		printConfig()
 
-	// Replace url in body
-	var href = regexp.MustCompile(`"(.*)"`)
-	body = href.ReplaceAll(body, []byte(`"`+locationUrl.String()+`"`))
-	c.Response().Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
+		// Initial health check
+		log.Info().Msg("Checking if petasos is reachable")
+		attempt := 1
+		err = retry.Do(
+			func() error {
+				log.Debug().Msgf("Trying to reach petasos: [attempt: %d]", attempt)
 
-	// Forward status code
-	c.Response().Writer.WriteHeader(resp.StatusCode)
+				attempt++
 
-	_, err = c.Response().Writer.Write(body)
-	if err != nil {
-		return err
-	}
+				err = petasosHealth(petasosURL)
+				if err != nil {
+					return fmt.Errorf("unhealthy")
+				}
+				return nil
+			},
+			retry.Attempts(10),
+			retry.Delay(1*time.Second),
+		)
+		errz.Fatal(err, "Could not reach petasos, shutting down")
 
-	return nil
+		// Setup & Start Server
+		e := echo.New()
+		e.Use(middleware.Logger())
+		e.Use(middleware.Recover())
+		e.GET("/*", forwarder)
+		e.Logger.Fatal(e.Start(":" + *port))
+	},
 }
 
 func main() {
@@ -262,6 +131,5 @@ func main() {
 		log.Error().Msg(err.Error())
 		os.Exit(1)
 	}
-
 	os.Exit(0)
 }
