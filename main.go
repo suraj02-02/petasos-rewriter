@@ -19,7 +19,6 @@ import (
 // from internal to external addresses.
 
 var port *string
-var publicTalariaEndpoint *string
 var petasosEndpoint *string
 
 // When fixedScheme is set talaria
@@ -30,17 +29,13 @@ var fixedScheme *string
 var logFormat *string // json or plain text
 var logLevel *string  // zerolog log level
 
+var talariaSubDomain *string // domain for talaria
+
 func init() {
 	// port to listen for incoming requests
 	port = rootCmd.PersistentFlags().String(
 		"port", "1323",
 		`Port to listen on`,
-	)
-
-	// Fixed public talaria endpoint
-	publicTalariaEndpoint = rootCmd.PersistentFlags().String(
-		"talaria-endpoint", "http://public-talaria-domain",
-		`Public talaria endpoint`,
 	)
 
 	petasosEndpoint = rootCmd.PersistentFlags().String(
@@ -58,16 +53,19 @@ func init() {
 	)
 
 	logLevel = rootCmd.PersistentFlags().String(
-		"log-level", "debug",
+		"log-level", "info",
 		fmt.Sprintf("[%s,%s,%s]",
 			zerolog.InfoLevel.String(),
 			zerolog.DebugLevel.String(),
 			zerolog.ErrorLevel.String(),
 		),
 	)
+	talariaSubDomain = rootCmd.PersistentFlags().String(
+		"talaria-sub-domain","dev.rdk.yo-digital.com",
+		"talaria sub domian where to forward the request",
+		)
 }
 
-var publicTalariaURL *url.URL
 var petasosURL *url.URL
 
 var rootCmd = &cobra.Command{
@@ -79,12 +77,6 @@ var rootCmd = &cobra.Command{
 
 		var err error
 		petasosURL, err = url.Parse(*petasosEndpoint)
-		if err != nil {
-			log.Error().Msg(err.Error())
-			os.Exit(1)
-		}
-
-		publicTalariaURL, err = url.Parse(*publicTalariaEndpoint)
 		if err != nil {
 			log.Error().Msg(err.Error())
 			os.Exit(1)
