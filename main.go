@@ -30,6 +30,8 @@ var logFormat *string // json or plain text
 var logLevel *string  // zerolog log level
 
 var talariaSubDomain *string // domain for talaria
+var talariaInternalHostName *string // internal domain for talaria in k8s env
+var talariaSubDomainPrefix *string // domain name prefix for talaria instance
 
 func init() {
 	// port to listen for incoming requests
@@ -63,6 +65,14 @@ func init() {
 	talariaSubDomain = rootCmd.PersistentFlags().String(
 		"talaria-sub-domain","dev.rdk.yo-digital.com",
 		"talaria sub domian where to forward the request",
+		)
+	talariaInternalHostName = rootCmd.PersistentFlags().String(
+		"talaria-internal-host-name","xmidt-talaria",
+		"will  try to match this string with real petasos response",
+		)
+	talariaSubDomainPrefix = rootCmd.PersistentFlags().String(
+		"talaria-sub-domain-prefix","talaria",
+		"will use this as talaria domain prefix",
 		)
 }
 

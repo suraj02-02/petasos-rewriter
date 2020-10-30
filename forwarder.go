@@ -16,6 +16,13 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var(
+
+	noMatchFound = errors.New("no match found")
+)
+
+
+
 // forwarder forwads requests to real petasos instance and does
 // apropriate replacements.
 func forwarder(c echo.Context) error {
@@ -135,6 +142,7 @@ func forwarder(c echo.Context) error {
 		return  err
 	}
 	locationUrl.Host = publicTalariaURL
+	log.Info().Msgf("redirecting from Location [%s] to Location [%s] \n", location,locationUrl.String())
 	c.Response().Header().Set("Location", locationUrl.String())
 
 	// Replace url in body
@@ -159,19 +167,11 @@ func parseHost(host string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	index := strings.Index(h,"xmidt-talaria-")
-	newHost :=  ""
-	if index > -1 {
-		newHost = strings.Replace(h,"xmidt-talaria-","talaria",-1)
-	} else {
-		index = strings.Index(h, "xmidt-talaria")
-		if index > -1 {
-			newHost = strings.Replace(h,"xmidt-talaria","talaria",-1)
-		} else{
-			 err = errors.New("no match foundL")
-			return "", err
-		}
+	index := strings.Index(h,*talariaInternalHostName)
+	if index == -1 {
+		return "", noMatchFound
 	}
+	newHost := strings.Replace(h,*talariaInternalHostName,*talariaSubDomainPrefix,-1)
 	var builder  strings.Builder
 	builder.WriteString(newHost)
 	builder.WriteString(".")
