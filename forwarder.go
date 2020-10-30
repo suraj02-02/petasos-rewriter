@@ -1,12 +1,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"regexp"
 	"strings"
 
@@ -14,6 +15,13 @@ import (
 
 	"github.com/rs/zerolog/log"
 )
+
+var(
+
+	noMatchFound = errors.New("no match found")
+)
+
+
 
 // forwarder forwads requests to real petasos instance and does
 // apropriate replacements.
@@ -47,8 +55,7 @@ func forwarder(c echo.Context) error {
 
 	dump, err := httputil.DumpRequest(req, true)
 	if err != nil {
-		log.Error().Msg(err.Error())
-		os.Exit(1)
+		return err
 	}
 	log.Debug().Msg("Dumping original request to petasos-rewriter")
 	log.Debug().Msgf("%s", dump)
@@ -72,8 +79,7 @@ func forwarder(c echo.Context) error {
 
 	dump, err = httputil.DumpRequest(req, true)
 	if err != nil {
-		log.Error().Msg(err.Error())
-		os.Exit(1)
+		return err
 	}
 	log.Debug().Msg("Dumping request to real petasos")
 	log.Debug().Msgf("%s", dump)
@@ -87,8 +93,7 @@ func forwarder(c echo.Context) error {
 
 	dump, err = httputil.DumpResponse(resp, true)
 	if err != nil {
-		log.Error().Msg(err.Error())
-		os.Exit(1)
+		return  err
 	}
 	log.Debug().Msg("Dumping response from real petasos")
 	log.Debug().Msgf("%s", dump)
@@ -100,6 +105,7 @@ func forwarder(c echo.Context) error {
 		return err
 	}
 
+	// just printing the all response headers which we got from actual petasos
 	for k, v := range resp.Header {
 		var header string
 		for _, s := range v {
@@ -117,6 +123,7 @@ func forwarder(c echo.Context) error {
 	// Replace location header
 	location := c.Response().Header().Get("Location")
 	log.Debug().Msgf("Location [%s]\n", location)
+
 	locationUrl, err := url.Parse(location)
 	if err != nil {
 		return err
@@ -129,8 +136,13 @@ func forwarder(c echo.Context) error {
 	} else {
 		locationUrl.Scheme = originalRequestScheme
 	}
-	locationUrl.Host = publicTalariaURL.Host
-	//locationUrl.Path = publicTalariaURL.Path
+
+	publicTalariaURL, err := parseHost(locationUrl.Host)
+	if err != nil {
+		return  err
+	}
+	locationUrl.Host = publicTalariaURL
+	log.Info().Msgf("redirecting from Location [%s] to Location [%s] \n", location,locationUrl.String())
 	c.Response().Header().Set("Location", locationUrl.String())
 
 	// Replace url in body
@@ -147,4 +159,22 @@ func forwarder(c echo.Context) error {
 	}
 
 	return nil
+}
+
+
+func parseHost(host string) (string, error) {
+	h, _, err := net.SplitHostPort(host)
+	if err != nil {
+		return "", err
+	}
+	index := strings.Index(h,*talariaInternalHostName)
+	if index == -1 {
+		return "", noMatchFound
+	}
+	newHost := strings.Replace(h,*talariaInternalHostName,*talariaSubDomainPrefix,-1)
+	var builder  strings.Builder
+	builder.WriteString(newHost)
+	builder.WriteString(".")
+	builder.WriteString(*talariaSubDomain)
+	return  builder.String(),nil
 }

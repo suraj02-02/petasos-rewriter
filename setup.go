@@ -29,10 +29,10 @@ func logging() {
 // printConfig read from cli to stdout
 func printConfig() {
 	fmt.Printf("Config:\n")
-	fmt.Printf("  petasos-endpoint: %s\n", petasosURL.String())
-	fmt.Printf("  talaria-endpoint: %s\n", publicTalariaURL.String())
-	fmt.Printf("  fixed-scheme:     %s\n", *fixedScheme)
-	fmt.Printf("  log:              %s\n", *logFormat)
-	fmt.Printf("  log-level:        %s\n", *logLevel)
+	fmt.Printf("  petasos-endpoint:   %s\n", petasosURL.String())
+	fmt.Printf("  fixed-scheme:       %s\n", *fixedScheme)
+	fmt.Printf("  log:                %s\n", *logFormat)
+	fmt.Printf("  log-level:          %s\n", *logLevel)
+	fmt.Printf("  talaria-sub-domain: %s\n", *talariaSubDomain)
 	fmt.Printf("\n\n")
 }
