@@ -29,9 +29,11 @@ var fixedScheme *string
 var logFormat *string // json or plain text
 var logLevel *string  // zerolog log level
 
-var talariaSubDomain *string // domain for talaria
-var talariaInternalHostName *string // internal domain for talaria in k8s env
-var talariaSubDomainPrefix *string // domain name prefix for talaria instance
+// internal domain for talaria in k8s env, replaced
+// with composition of talariaSubDomain & talariaSubDomainPrefix
+var talariaInternalName *string
+var talariaDomain *string       // domain for talaria [talaria.example.com]
+var talariaExternalName *string // external name for talaria instance
 
 func init() {
 	// port to listen for incoming requests
@@ -45,15 +47,10 @@ func init() {
 		`Petasos endpoint, usually private.`,
 	)
 
-	fixedScheme = rootCmd.PersistentFlags().String(
-		"fixed-scheme", "",
-		`If set, all redirects will use this scheme [http, https]`,
-	)
 	logFormat = rootCmd.PersistentFlags().String(
 		"log", "json",
 		`Log output format [json, text]`,
 	)
-
 	logLevel = rootCmd.PersistentFlags().String(
 		"log-level", "info",
 		fmt.Sprintf("[%s,%s,%s]",
@@ -62,18 +59,23 @@ func init() {
 			zerolog.ErrorLevel.String(),
 		),
 	)
-	talariaSubDomain = rootCmd.PersistentFlags().String(
-		"talaria-sub-domain","dev.rdk.yo-digital.com",
-		"talaria sub domian where to forward the request",
-		)
-	talariaInternalHostName = rootCmd.PersistentFlags().String(
-		"talaria-internal-host-name","xmidt-talaria",
-		"will  try to match this string with real petasos response",
-		)
-	talariaSubDomainPrefix = rootCmd.PersistentFlags().String(
-		"talaria-sub-domain-prefix","talaria",
-		"will use this as talaria domain prefix",
-		)
+
+	fixedScheme = rootCmd.PersistentFlags().String(
+		"fixed-scheme", "",
+		`If set, all redirects will use this scheme [http, https]`,
+	)
+	talariaInternalName = rootCmd.PersistentFlags().String(
+		"talaria-internal", "xmidt-talaria",
+		"Replacement candidate with talaria-external",
+	)
+	talariaDomain = rootCmd.PersistentFlags().String(
+		"talaria-domain", "dev.rdk.yo-digital.com",
+		"Talaria public domain to forward the request to. Example result: [replace(talaria-internal,talaria-external).talaria-domain]",
+	)
+	talariaExternalName = rootCmd.PersistentFlags().String(
+		"talaria-external", "talaria",
+		"Replacement for talaria-internal-name ",
+	)
 }
 
 var petasosURL *url.URL

@@ -33,6 +33,8 @@ func printConfig() {
 	fmt.Printf("  fixed-scheme:       %s\n", *fixedScheme)
 	fmt.Printf("  log:                %s\n", *logFormat)
 	fmt.Printf("  log-level:          %s\n", *logLevel)
-	fmt.Printf("  talaria-sub-domain: %s\n", *talariaSubDomain)
+	fmt.Printf("  talaria-domain: %s\n", *talariaDomain)
+	fmt.Printf("  talaria-internal-name: %s\n", *talariaInternalName)
+	fmt.Printf("  talaria-external-name: %s\n", *talariaExternalName)
 	fmt.Printf("\n\n")
 }

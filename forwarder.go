@@ -1,10 +1,8 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -16,12 +14,9 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-var(
-
-	noMatchFound = errors.New("no match found")
+var (
+	ErrNoMatchFound = fmt.Errorf("No match found")
 )
-
-
 
 // forwarder forwads requests to real petasos instance and does
 // apropriate replacements.
@@ -93,7 +88,7 @@ func forwarder(c echo.Context) error {
 
 	dump, err = httputil.DumpResponse(resp, true)
 	if err != nil {
-		return  err
+		return err
 	}
 	log.Debug().Msg("Dumping response from real petasos")
 	log.Debug().Msgf("%s", dump)
@@ -137,12 +132,19 @@ func forwarder(c echo.Context) error {
 		locationUrl.Scheme = originalRequestScheme
 	}
 
-	publicTalariaURL, err := parseHost(locationUrl.Host)
+	// Do replacement & build public talaria url
+	externalTalariaName, err := resplaceTalariaInternalName(
+		locationUrl.Hostname(),
+		*talariaInternalName,
+		*talariaExternalName,
+	)
 	if err != nil {
-		return  err
+		return err
 	}
+	publicTalariaURL := buildExternalURL(externalTalariaName, *talariaDomain)
+
 	locationUrl.Host = publicTalariaURL
-	log.Info().Msgf("redirecting from Location [%s] to Location [%s] \n", location,locationUrl.String())
+	log.Info().Msgf("redirecting from Location [%s] to Location [%s] \n", location, locationUrl.String())
 	c.Response().Header().Set("Location", locationUrl.String())
 
 	// Replace url in body
@@ -161,20 +163,27 @@ func forwarder(c echo.Context) error {
 	return nil
 }
 
-
-func parseHost(host string) (string, error) {
-	h, _, err := net.SplitHostPort(host)
-	if err != nil {
-		return "", err
-	}
-	index := strings.Index(h,*talariaInternalHostName)
+// resplaceTalariaInternalName replaces internal talaria name.
+// Returns a ErrNoMatchFound when replacement is impossible.
+func resplaceTalariaInternalName(host, old, new string) (string, error) {
+	index := strings.Index(host, old)
 	if index == -1 {
-		return "", noMatchFound
+		return "", ErrNoMatchFound
 	}
-	newHost := strings.Replace(h,*talariaInternalHostName,*talariaSubDomainPrefix,-1)
-	var builder  strings.Builder
-	builder.WriteString(newHost)
+	talariaExternal := strings.Replace(host, old, new, -1)
+
+	// TODO: strip possible internal k8s namespace.
+	// xmidt-talaria OK
+	// talaria.xmidt Not OK
+
+	return talariaExternal, nil
+}
+
+// buildExternalURL by concatenation new talaria name + given domain
+func buildExternalURL(newTalariaName, domain string) string {
+	var builder strings.Builder
+	builder.WriteString(newTalariaName)
 	builder.WriteString(".")
-	builder.WriteString(*talariaSubDomain)
-	return  builder.String(),nil
+	builder.WriteString(domain)
+	return builder.String()
 }
