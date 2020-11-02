@@ -1,1 +1,4 @@
 petasos-rewriter
+.idea
+*.html
+*.out

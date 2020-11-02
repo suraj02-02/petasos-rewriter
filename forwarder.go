@@ -133,7 +133,7 @@ func forwarder(c echo.Context) error {
 	}
 
 	// Do replacement & build public talaria url
-	externalTalariaName, err := resplaceTalariaInternalName(
+	externalTalariaName, err := replaceTalariaInternalName(
 		locationUrl.Hostname(),
 		*talariaInternalName,
 		*talariaExternalName,
@@ -163,9 +163,9 @@ func forwarder(c echo.Context) error {
 	return nil
 }
 
-// resplaceTalariaInternalName replaces internal talaria name.
+// replaceTalariaInternalName replaces internal talaria name.
 // Returns a ErrNoMatchFound when replacement is impossible.
-func resplaceTalariaInternalName(host, old, new string) (string, error) {
+func replaceTalariaInternalName(host, old, new string) (string, error) {
 	index := strings.Index(host, old)
 	if index == -1 {
 		return "", ErrNoMatchFound

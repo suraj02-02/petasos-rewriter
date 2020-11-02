@@ -12,5 +12,6 @@ require (
 	github.com/labstack/gommon v0.3.0 // indirect
 	github.com/rs/zerolog v1.19.0
 	github.com/spf13/cobra v1.0.0
+	github.com/stretchr/testify v1.4.0
 	github.com/valyala/fasttemplate v1.1.1 // indirect
 )
