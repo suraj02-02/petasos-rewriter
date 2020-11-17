@@ -144,7 +144,7 @@ func forwarder(c echo.Context) error {
 	publicTalariaURL := buildExternalURL(externalTalariaName, *talariaDomain)
 
 	locationUrl.Host = publicTalariaURL
-	log.Info().Msgf("redirecting from Location [%s] to Location [%s] \n", location, locationUrl.String())
+	log.Info().Msgf("redirecting from Location [%s] to Location [%s] for device name [%s] \n", location, locationUrl.String(),req.Header.Get("X-Webpa-Device-Name"))
 	c.Response().Header().Set("Location", locationUrl.String())
 
 	// Replace url in body
