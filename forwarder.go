@@ -114,7 +114,12 @@ func forwarder(c echo.Context) error {
 
 		log.Debug().Msgf("k: %s, v: %s\n", k, v)
 	}
-	if c.Response().Status != http.StatusOK {
+	// Forward status code
+	c.Response().Writer.WriteHeader(resp.StatusCode)
+
+	if resp.StatusCode != http.StatusOK {
+		c.Response().Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
+		c.Response().Writer.Write(body)
 		return nil
 	}
 	// Replace location header
@@ -154,8 +159,7 @@ func forwarder(c echo.Context) error {
 	body = href.ReplaceAll(body, []byte(`"`+locationUrl.String()+`"`))
 	c.Response().Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
 
-	// Forward status code
-	c.Response().Writer.WriteHeader(resp.StatusCode)
+
 
 	_, err = c.Response().Writer.Write(body)
 	if err != nil {
