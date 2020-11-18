@@ -114,7 +114,9 @@ func forwarder(c echo.Context) error {
 
 		log.Debug().Msgf("k: %s, v: %s\n", k, v)
 	}
-
+	if c.Response().Status != http.StatusOK {
+		return nil
+	}
 	// Replace location header
 	location := c.Response().Header().Get("Location")
 	log.Debug().Msgf("Location [%s]\n", location)
