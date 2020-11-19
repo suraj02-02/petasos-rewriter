@@ -114,10 +114,12 @@ func forwarder(c echo.Context) error {
 
 		log.Debug().Msgf("k: %s, v: %s\n", k, v)
 	}
-	// Forward status code
-	c.Response().Writer.WriteHeader(resp.StatusCode)
+
+
 
 	if resp.StatusCode != http.StatusTemporaryRedirect {
+		// Forward status code
+		c.Response().Writer.WriteHeader(resp.StatusCode)
 		c.Response().Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
 		c.Response().Writer.Write(body)
 		return nil
@@ -159,12 +161,14 @@ func forwarder(c echo.Context) error {
 	body = href.ReplaceAll(body, []byte(`"`+locationUrl.String()+`"`))
 	c.Response().Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
 
-
+	// Forward status code
+	c.Response().Writer.WriteHeader(resp.StatusCode)
 
 	_, err = c.Response().Writer.Write(body)
 	if err != nil {
 		return err
 	}
+
 
 	return nil
 }
