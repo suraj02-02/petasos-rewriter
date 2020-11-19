@@ -117,7 +117,7 @@ func forwarder(c echo.Context) error {
 	// Forward status code
 	c.Response().Writer.WriteHeader(resp.StatusCode)
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusTemporaryRedirect {
 		c.Response().Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
 		c.Response().Writer.Write(body)
 		return nil
