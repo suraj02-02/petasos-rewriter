@@ -34,6 +34,8 @@ var logLevel *string  // zerolog log level
 var talariaInternalName *string
 var talariaDomain *string       // domain for talaria [talaria.example.com]
 var talariaExternalName *string // external name for talaria instance
+var logDir *string // logDir Where logs will be stored
+var logFilename *string // log file where current logs will be stored.
 
 func init() {
 	// port to listen for incoming requests
@@ -49,7 +51,7 @@ func init() {
 
 	logFormat = rootCmd.PersistentFlags().String(
 		"log", "json",
-		`Log output format [json, text]`,
+		`Log output format [json, text, file]`,
 	)
 	logLevel = rootCmd.PersistentFlags().String(
 		"log-level", "info",
@@ -76,6 +78,16 @@ func init() {
 		"talaria-external", "talaria",
 		"Replacement for talaria-internal-name ",
 	)
+
+	logDir = rootCmd.PersistentFlags().String(
+		"log-dir","/tmp",
+		"directory for storing logs",
+		)
+	logFilename = rootCmd.PersistentFlags().String(
+		"log-file-name" ,"petasos-rewriter.log",
+		"Actual log file name",
+
+		)
 }
 
 var petasosURL *url.URL

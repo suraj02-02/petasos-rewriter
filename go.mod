@@ -14,4 +14,5 @@ require (
 	github.com/spf13/cobra v1.0.0
 	github.com/stretchr/testify v1.4.0
 	github.com/valyala/fasttemplate v1.1.1 // indirect
+	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 )
