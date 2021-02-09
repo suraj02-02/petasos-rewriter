@@ -1,0 +1,58 @@
+server:
+  # port on which application will be running
+  port: 1323
+  # keep this as blank or http or https
+  # When fixedScheme is set talaria  redirects will use this scheme.
+  # If false, the scheme of the original request is used
+  # If set, all redirects will use this scheme [http, https]
+  fixedScheme:
+
+#Petasos endpoint, usually private
+petasos:
+  endpoint: http://localhost:6400
+
+talaria:
+  # Replacement candidate with talaria.external
+  internal: talaria
+  #Replacement for talaria-internal-name
+  external: talaria
+  #Talaria public domain to forward the request to. Example result: [replace(talaria-internal,talaria-external).talaria-domain]
+  domain: dev.rdk.yo-digital.com
+
+#Sentry
+sentry:
+  # proper DSN or NA will disable the sentry
+  dsn: N
+  environment: Local
+  debug: false
+
+#Log
+log:
+  #Type can be stdout or file
+  type: stdout
+  #if type is file json is not used it is default json
+  json: true
+  #applicable values [info,debug,error]
+  level: debug
+  # below all used for  log.type = file
+  # in which directory we need to write the logs.
+  dir: /tmp/
+  #fileName of the log file
+  fileName: petasos-rewriter.log
+  #below are the log rotation  properties.
+  #maxSize is in MB
+  maxSize: 1024
+  #maxAge in hours
+  maxAge: 24
+  #how much backup do we need.
+  maxBackups: 10
+
+
+#Tracing information.
+traceProvider:
+  #Applcable values are stdout, jaegar and zipkin
+  type: stdout
+  # endpoint  for posting the traces to jaegar or zipkin
+  endpoint:
+  # If true will  skip  exporting of the trace information to stdout
+  skipTraceExport: true
