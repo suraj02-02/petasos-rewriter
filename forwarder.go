@@ -2,6 +2,10 @@ package main
 
 import (
 	"fmt"
+	"github.com/getsentry/sentry-go"
+	"github.com/spf13/viper"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
@@ -10,8 +14,8 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v4"
-
 	"github.com/rs/zerolog/log"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -21,41 +25,58 @@ var (
 // forwarder forwads requests to real petasos instance and does
 // apropriate replacements.
 func forwarder(c echo.Context) error {
+	if sentryEnabled {
+		defer  sentry.Recover()
+	}
 
-	log.Debug().Msg("##############################")
-	log.Debug().Msg("###### Request Start #########")
-	log.Debug().Msg("##############################")
 
 	// prepare request for forwarding
 	req := c.Request()
+
+	var span trace.Span
+	ctx := req.Context()
+	prop := propagation.TraceContext{}
+	ctx = prop.Extract(ctx,req.Header)
+	tracer := otel.GetTracerProvider().Tracer(req.URL.Path)
+	ctx,span = tracer.Start(ctx,req.URL.Path)
+	defer span.End()
+	//req.WithContext(ctx)
+	spnId,traceId := span.SpanContext().SpanID.String(),span.SpanContext().TraceID.String()
+
+	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("##############################")
+	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("###### Request Start #########")
+	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("##############################")
+
 
 	// store scheme of original request
 	originalRequestScheme := req.URL.Scheme
 	if originalRequestScheme == "" {
 		originalRequestScheme = req.Header.Get("X-Forwarded-Proto")
 	}
-	log.Debug().Msgf("originalScheme [%s]", originalRequestScheme)
+	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msgf("originalScheme [%s]", originalRequestScheme)
 
 	// Change protocols from ws(s) => http(s).
 	// Parodus makes requests to `ws` but complains
 	// when getting a redirect containing `ws`.
 	switch originalRequestScheme {
 	case "ws":
-		log.Debug().Msgf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "http")
+		log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msgf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "http")
 		originalRequestScheme = "http"
+		break
 	case "wss":
-		log.Debug().Msgf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "https")
+		log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msgf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "https")
 		originalRequestScheme = "https"
 	}
 
 	dump, err := httputil.DumpRequest(req, true)
 	if err != nil {
+		panic(err)
 		return err
 	}
-	log.Debug().Msg("Dumping original request to petasos-rewriter")
-	log.Debug().Msgf("%s", dump)
-	log.Debug().Msg("") // br
-	log.Debug().Msg("") // br
+	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("Dumping original request to petasos-rewriter")
+	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msgf("%s", dump)
+	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("") // br
+	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("") // br
 
 	// Prepare forwarding to petasos
 	req.URL = &url.URL{
@@ -72,31 +93,35 @@ func forwarder(c echo.Context) error {
 		},
 	}
 
+	prop.Inject(ctx,req.Header)
 	dump, err = httputil.DumpRequest(req, true)
 	if err != nil {
+		panic(err)
 		return err
 	}
-	log.Debug().Msg("Dumping request to real petasos")
-	log.Debug().Msgf("%s", dump)
-	log.Debug().Msg("") // br
-	log.Debug().Msg("") // br
-
+	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("Dumping request to real petasos")
+	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msgf("%s", dump)
+	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("") // br
+	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("") // br
 	resp, err := client.Do(req)
 	if err != nil {
+		panic(err)
 		return err
 	}
 
 	dump, err = httputil.DumpResponse(resp, true)
 	if err != nil {
+		panic(err)
 		return err
 	}
-	log.Debug().Msg("Dumping response from real petasos")
-	log.Debug().Msgf("%s", dump)
-	log.Debug().Msg("") // br
-	log.Debug().Msg("") // br
+	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("Dumping response from real petasos")
+	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msgf("%s", dump)
+	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("") // br
+	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("") // br
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		panic(err)
 		return err
 	}
 
@@ -112,7 +137,7 @@ func forwarder(c echo.Context) error {
 		header = strings.TrimRight(header, ",")
 		c.Response().Header().Set(k, header)
 
-		log.Debug().Msgf("k: %s, v: %s\n", k, v)
+		log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msgf("k: %s, v: %s\n", k, v)
 	}
 
 
@@ -126,17 +151,20 @@ func forwarder(c echo.Context) error {
 	}
 	// Replace location header
 	location := c.Response().Header().Get("Location")
-	log.Debug().Msgf("Location [%s]\n", location)
+	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msgf("Location [%s]\n", location)
 
 	locationUrl, err := url.Parse(location)
 	if err != nil {
+		panic(err)
 		return err
 	}
+	fixedScheme :=  viper.GetString("server.fixedScheme")
 
-	if *fixedScheme != "" {
+
+	if fixedScheme != "" {
 		// TODO: use scheme from publicTalariaURL and make fixedScheme bool
 		// locationUrl.Scheme = publicTalariaURL.Scheme
-		locationUrl.Scheme = *fixedScheme
+		locationUrl.Scheme = fixedScheme
 	} else {
 		locationUrl.Scheme = originalRequestScheme
 	}
@@ -144,16 +172,17 @@ func forwarder(c echo.Context) error {
 	// Do replacement & build public talaria url
 	externalTalariaName, err := replaceTalariaInternalName(
 		locationUrl.Hostname(),
-		*talariaInternalName,
-		*talariaExternalName,
+		viper.GetString(talariaInternal),
+		viper.GetString(talariaExternal),
 	)
 	if err != nil {
+		panic(err)
 		return err
 	}
-	publicTalariaURL := buildExternalURL(externalTalariaName, *talariaDomain)
+	publicTalariaURL := buildExternalURL(externalTalariaName, viper.GetString(talariaDomain))
 
 	locationUrl.Host = publicTalariaURL
-	log.Info().Msgf("redirecting from Location [%s] to Location [%s] for device name [%s] \n", location, locationUrl.String(),req.Header.Get("X-Webpa-Device-Name"))
+	log.Info().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msgf("redirecting from Location [%s] to Location [%s] for device name [%s] \n", location, locationUrl.String(),req.Header.Get("X-Webpa-Device-Name"))
 	c.Response().Header().Set("Location", locationUrl.String())
 
 	// Replace url in body
@@ -163,9 +192,12 @@ func forwarder(c echo.Context) error {
 
 	// Forward status code
 	c.Response().Writer.WriteHeader(resp.StatusCode)
+	c.Response().Header().Set(spanIdHeader,spnId)
+	c.Response().Header().Set(traceIdHeader,traceId)
 
 	_, err = c.Response().Writer.Write(body)
 	if err != nil {
+		panic(err)
 		return err
 	}
 

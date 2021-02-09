@@ -9,4 +9,6 @@ RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w"
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 COPY --from=builder /go/src/github.com/Sachin4403/petasos-rewriter/petasos-rewriter /petasos-rewriter
+RUN mkdir /etc/petasos-rewriter/ && touch /etc/petasos-rewriter/petasos-rewriter.yaml && chmod 666 /etc/petasos-rewriter/petasos-rewriter.yaml
+
 ENTRYPOINT ["/petasos-rewriter"]
