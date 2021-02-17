@@ -22,7 +22,7 @@ talaria:
 #Sentry
 sentry:
   # proper DSN or NA will disable the sentry
-  dsn: N
+  dsn: NA
   environment: Local
   debug: false
 
