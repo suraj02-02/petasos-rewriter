@@ -43,6 +43,9 @@ func forwarder(c echo.Context) error {
 	//req.WithContext(ctx)
 	spnId,traceId := span.SpanContext().SpanID.String(),span.SpanContext().TraceID.String()
 
+	c.Response().Header().Set(spanIdHeader,spnId)
+	c.Response().Header().Set(traceIdHeader,traceId)
+
 	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("##############################")
 	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("###### Request Start #########")
 	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("##############################")
@@ -147,6 +150,8 @@ func forwarder(c echo.Context) error {
 		c.Response().Writer.WriteHeader(resp.StatusCode)
 		c.Response().Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
 		c.Response().Writer.Write(body)
+		err := string(body)
+		panic(err)
 		return nil
 	}
 	// Replace location header
@@ -192,8 +197,7 @@ func forwarder(c echo.Context) error {
 
 	// Forward status code
 	c.Response().Writer.WriteHeader(resp.StatusCode)
-	c.Response().Header().Set(spanIdHeader,spnId)
-	c.Response().Header().Set(traceIdHeader,traceId)
+
 
 	_, err = c.Response().Writer.Write(body)
 	if err != nil {
