@@ -26,48 +26,48 @@ var (
 // apropriate replacements.
 func forwarder(c echo.Context) error {
 	if sentryEnabled {
-		defer  sentry.Recover()
+		defer sentry.Recover()
 	}
-
 
 	// prepare request for forwarding
 	req := c.Request()
-
 	var span trace.Span
 	ctx := req.Context()
 	prop := propagation.TraceContext{}
-	ctx = prop.Extract(ctx,req.Header)
+	ctx = prop.Extract(ctx, req.Header)
 	tracer := otel.GetTracerProvider().Tracer(req.URL.Path)
-	ctx,span = tracer.Start(ctx,req.URL.Path)
+	ctx, span = tracer.Start(ctx, req.URL.Path)
 	defer span.End()
-	//req.WithContext(ctx)
-	spnId,traceId := span.SpanContext().SpanID.String(),span.SpanContext().TraceID.String()
 
-	c.Response().Header().Set(spanIdHeader,spnId)
-	c.Response().Header().Set(traceIdHeader,traceId)
+	spnId, traceId := span.SpanContext().SpanID.String(), span.SpanContext().TraceID.String()
+	sentry.ConfigureScope(func(scope *sentry.Scope) {
+		scope.SetExtras(map[string]interface{}{"span_id": spnId, "trace_id": traceId, "X-TENANT-ID": req.Header.Get("X-TENANT-ID"), "X-Webpa-Device-Name": req.Header.Get("X-Webpa-Device-Name")})
+	})
 
-	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("##############################")
-	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("###### Request Start #########")
-	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("##############################")
+	c.Response().Header().Set(spanIdHeader, spnId)
+	c.Response().Header().Set(traceIdHeader, traceId)
 
+	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("##############################")
+	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("###### Request Start #########")
+	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("##############################")
 
 	// store scheme of original request
 	originalRequestScheme := req.URL.Scheme
 	if originalRequestScheme == "" {
 		originalRequestScheme = req.Header.Get("X-Forwarded-Proto")
 	}
-	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msgf("originalScheme [%s]", originalRequestScheme)
+	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msgf("originalScheme [%s]", originalRequestScheme)
 
 	// Change protocols from ws(s) => http(s).
 	// Parodus makes requests to `ws` but complains
 	// when getting a redirect containing `ws`.
 	switch originalRequestScheme {
 	case "ws":
-		log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msgf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "http")
+		log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msgf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "http")
 		originalRequestScheme = "http"
 		break
 	case "wss":
-		log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msgf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "https")
+		log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msgf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "https")
 		originalRequestScheme = "https"
 	}
 
@@ -76,10 +76,10 @@ func forwarder(c echo.Context) error {
 		panic(err)
 		return err
 	}
-	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("Dumping original request to petasos-rewriter")
-	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msgf("%s", dump)
-	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("") // br
-	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("") // br
+	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("Dumping original request to petasos-rewriter")
+	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msgf("%s", dump)
+	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("") // br
+	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("") // br
 
 	// Prepare forwarding to petasos
 	req.URL = &url.URL{
@@ -96,34 +96,37 @@ func forwarder(c echo.Context) error {
 		},
 	}
 
-	prop.Inject(ctx,req.Header)
+	prop.Inject(ctx, req.Header)
 	dump, err = httputil.DumpRequest(req, true)
 	if err != nil {
 		panic(err)
 		return err
 	}
-	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("Dumping request to real petasos")
-	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msgf("%s", dump)
-	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("") // br
-	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("") // br
+	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("Dumping request to real petasos")
+	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msgf("%s", dump)
+	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("") // br
+	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("") // br
 	resp, err := client.Do(req)
 	if err != nil {
+		sentry.CaptureException(err)
 		panic(err)
 		return err
 	}
 
 	dump, err = httputil.DumpResponse(resp, true)
 	if err != nil {
+		sentry.CaptureException(err)
 		panic(err)
 		return err
 	}
-	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("Dumping response from real petasos")
-	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msgf("%s", dump)
-	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("") // br
-	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msg("") // br
+	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("Dumping response from real petasos")
+	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msgf("%s", dump)
+	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("") // br
+	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("") // br
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		sentry.CaptureException(err)
 		panic(err)
 		return err
 	}
@@ -140,10 +143,8 @@ func forwarder(c echo.Context) error {
 		header = strings.TrimRight(header, ",")
 		c.Response().Header().Set(k, header)
 
-		log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msgf("k: %s, v: %s\n", k, v)
+		log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msgf("k: %s, v: %s\n", k, v)
 	}
-
-
 
 	if resp.StatusCode != http.StatusTemporaryRedirect {
 		// Forward status code
@@ -151,20 +152,21 @@ func forwarder(c echo.Context) error {
 		c.Response().Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
 		c.Response().Writer.Write(body)
 		err := string(body)
+		sentry.CaptureMessage(err)
 		panic(err)
 		return nil
 	}
 	// Replace location header
 	location := c.Response().Header().Get("Location")
-	log.Debug().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msgf("Location [%s]\n", location)
+	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msgf("Location [%s]\n", location)
 
 	locationUrl, err := url.Parse(location)
+	sentry.CaptureException(err)
 	if err != nil {
 		panic(err)
 		return err
 	}
-	fixedScheme :=  viper.GetString("server.fixedScheme")
-
+	fixedScheme := viper.GetString("server.fixedScheme")
 
 	if fixedScheme != "" {
 		// TODO: use scheme from publicTalariaURL and make fixedScheme bool
@@ -181,13 +183,14 @@ func forwarder(c echo.Context) error {
 		viper.GetString(talariaExternal),
 	)
 	if err != nil {
+		sentry.CaptureException(err)
 		panic(err)
 		return err
 	}
 	publicTalariaURL := buildExternalURL(externalTalariaName, viper.GetString(talariaDomain))
 
 	locationUrl.Host = publicTalariaURL
-	log.Info().Str(traceIdHeader,traceId).Str(spanIdHeader,spnId).Msgf("redirecting from Location [%s] to Location [%s] for device name [%s] \n", location, locationUrl.String(),req.Header.Get("X-Webpa-Device-Name"))
+	log.Info().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msgf("redirecting from Location [%s] to Location [%s] for device name [%s] \n", location, locationUrl.String(), req.Header.Get("X-Webpa-Device-Name"))
 	c.Response().Header().Set("Location", locationUrl.String())
 
 	// Replace url in body
@@ -198,13 +201,12 @@ func forwarder(c echo.Context) error {
 	// Forward status code
 	c.Response().Writer.WriteHeader(resp.StatusCode)
 
-
 	_, err = c.Response().Writer.Write(body)
 	if err != nil {
+		sentry.CaptureException(err)
 		panic(err)
 		return err
 	}
-
 
 	return nil
 }

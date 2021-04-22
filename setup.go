@@ -32,13 +32,13 @@ func logging(v *viper.Viper) {
 	default:
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
-	 logType := v.GetString("type")
-	 json := v.GetBool("json")
-	 if logType == "file" {
-		 log.Logger = log.Output(fileAppender(v)).With().Caller().Logger()
-	 } else if !json{
-		 log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr}).With().Caller().Logger()
-	 }
+	logType := v.GetString("type")
+	json := v.GetBool("json")
+	if logType == "file" {
+		log.Logger = log.Output(fileAppender(v)).With().Caller().Logger()
+	} else if !json {
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr}).With().Caller().Logger()
+	}
 
 }
 
@@ -46,7 +46,7 @@ func logging(v *viper.Viper) {
 func printConfig() {
 	fmt.Printf("Config:\n")
 	for _, s := range viper.AllKeys() {
-		fmt.Printf("  %s :                %s\n", s,viper.Get(s))
+		fmt.Printf("  %s :                %s\n", s, viper.Get(s))
 	}
 	fmt.Printf("\n\n")
 }
@@ -66,18 +66,22 @@ func fileAppender(v *viper.Viper) io.Writer {
 
 }
 
-
-func ConfigureSentry(v *viper.Viper){
+func ConfigureSentry(v *viper.Viper) {
 	sentryDsn := v.GetString("dsn")
 	if sentryDsn == "NA" {
 		return
 	}
 	err := sentry.Init(sentry.ClientOptions{
-		Dsn: sentryDsn,
-		Environment: v.GetString("environment"),
-		Debug: v.GetBool("debug"),
+		Dsn:              sentryDsn,
+		Environment:      v.GetString("environment"),
+		Debug:            v.GetBool("debug"),
 		AttachStacktrace: true,
 	})
+	sentry.ConfigureScope(func(scope *sentry.Scope) {
+		scope.SetTags(map[string]string{"app_name": applicationName})
+		scope.SetLevel(sentry.LevelError)
+	})
+
 	if err != nil {
 		errz.Fatal(err, "Could not configure sentry, shutting down")
 	}
@@ -85,6 +89,7 @@ func ConfigureSentry(v *viper.Viper){
 	defer sentry.Flush(2 * time.Second)
 
 }
+
 func ConfigureViper(applicationName string) error {
 	viper.AddConfigPath(fmt.Sprintf("/etc/%s", applicationName))
 	viper.AddConfigPath(fmt.Sprintf("$HOME/.%s", applicationName))
@@ -103,7 +108,7 @@ func ConfigureViper(applicationName string) error {
  2. supported traceProviders are zipkin,jaegar and stdout
  3. set skipTraceExport = true if you don't want to print the span and tracer information in stdout
 */
-func configureTracerProvider(v *viper.Viper,applicationName string){
+func configureTracerProvider(v *viper.Viper, applicationName string) {
 	var traceProviderName = v.GetString(traceProviderType)
 
 	switch traceProviderName {
@@ -132,14 +137,14 @@ func configureTracerProvider(v *viper.Viper,applicationName string){
 		if err != nil {
 			log.Debug().Msg("failed to create jaegar pipeline")
 		}
-		defer  flush()
+		defer flush()
 		break
 	default:
 		var skipTraceExport = v.GetBool(traceProviderSkipTraceExport)
 		var option stdout.Option
 		if skipTraceExport {
 			option = stdout.WithoutTraceExport()
-		}else{
+		} else {
 			option = stdout.WithPrettyPrint()
 		}
 		otExporter, err := stdout.NewExporter(option)
@@ -151,6 +156,3 @@ func configureTracerProvider(v *viper.Viper,applicationName string){
 		otel.SetTracerProvider(traceProvider)
 	}
 }
-
-
-
