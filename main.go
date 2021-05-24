@@ -28,8 +28,8 @@ const (
 	traceProviderType            = "type"
 	traceProviderEndpoint        = "endpoint"
 	traceProviderSkipTraceExport = "skipTraceExport"
-	spanIdHeader                 = "X-B3-SpanId"
-	traceIdHeader                = "X-B3-TraceId"
+	spanIdHeader                 = "span-id"
+	traceIdHeader                = "trace-id"
 )
 
 func init() {
