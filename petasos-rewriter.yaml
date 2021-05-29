@@ -50,9 +50,9 @@ log:
 
 #Tracing information.
 traceProvider:
-  #Applcable values are stdout, jaegar and zipkin
+  #Applcable values are stdout, jaegar, zipkin and noop
   type: stdout
   # endpoint  for posting the traces to jaegar or zipkin
   endpoint:
   # If true will  skip  exporting of the trace information to stdout
-  skipTraceExport: true
+  skipTraceExport: false

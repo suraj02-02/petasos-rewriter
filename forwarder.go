@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"github.com/getsentry/sentry-go"
-	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 	"io/ioutil"
 	"net/http"
@@ -32,8 +31,9 @@ func forwarder(c echo.Context) error {
 	req := c.Request()
 	ctx := req.Context()
 	span := trace.SpanFromContext(ctx)
-
 	spanId, traceId := span.SpanContext().SpanID().String(), span.SpanContext().TraceID().String()
+	logger := log.With().Str(traceIdHeader, traceId).Str(spanIdHeader, spanId).Logger()
+	ctx = logger.WithContext(ctx)
 	sentry.ConfigureScope(func(scope *sentry.Scope) {
 		scope.SetExtras(map[string]interface{}{"span_id": spanId, "trace_id": traceId, "X-TENANT-ID": req.Header.Get("X-TENANT-ID"), "X-Webpa-Device-Name": req.Header.Get("X-Webpa-Device-Name")})
 	})
@@ -44,19 +44,19 @@ func forwarder(c echo.Context) error {
 		originalRequestScheme = req.Header.Get("X-Forwarded-Proto")
 	}
 
-	printLog(log.Debug(), span, fmt.Sprintf("originalScheme [%s]", originalRequestScheme))
+	log.Ctx(ctx).Debug().Msgf("originalScheme [%s]", originalRequestScheme)
 
 	// Change protocols from ws(s) => http(s).
 	// Parodus makes requests to `ws` but complains
 	// when getting a redirect containing `ws`.
 	switch originalRequestScheme {
 	case "ws":
-		printLog(log.Debug(), span, fmt.Sprintf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "http"))
+		log.Ctx(ctx).Debug().Msgf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "http")
 
 		originalRequestScheme = "http"
 		break
 	case "wss":
-		printLog(log.Debug(), span, fmt.Sprintf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "https"))
+		log.Ctx(ctx).Debug().Msgf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "https")
 		originalRequestScheme = "https"
 	}
 
@@ -65,10 +65,10 @@ func forwarder(c echo.Context) error {
 		panic(err)
 		return err
 	}
-	printLog(log.Debug(), span, "Dumping original request to petasos-rewriter")
-	printLog(log.Debug(), span, fmt.Sprintf("%s", dump))
-	printLog(log.Debug(), span, "") // br
-	printLog(log.Debug(), span, "") // br
+	log.Ctx(ctx).Debug().Msg("Dumping original request to petasos-rewriter")
+	log.Ctx(ctx).Debug().Msgf("%s", dump)
+	log.Ctx(ctx).Debug().Msg("") // br
+	log.Ctx(ctx).Debug().Msg("") // br
 
 	// Prepare forwarding to petasos
 	req.URL = &url.URL{
@@ -82,10 +82,10 @@ func forwarder(c echo.Context) error {
 		panic(err)
 		return err
 	}
-	printLog(log.Debug(), span, "Dumping request to real petasos")
-	printLog(log.Debug(), span, fmt.Sprintf("%s", dump))
-	printLog(log.Debug(), span, "") // br
-	printLog(log.Debug(), span, "") // br
+	log.Ctx(ctx).Debug().Msg("Dumping request to real petasos")
+	log.Ctx(ctx).Debug().Msgf("%s", dump)
+	log.Ctx(ctx).Debug().Msg("") // br
+	log.Ctx(ctx).Debug().Msg("") // br
 	resp, err := client.Do(req)
 	if err != nil {
 		sentry.CaptureException(err)
@@ -99,10 +99,10 @@ func forwarder(c echo.Context) error {
 		panic(err)
 		return err
 	}
-	printLog(log.Debug(), span, "Dumping response from real petasos")
-	printLog(log.Debug(), span, fmt.Sprintf("%s", dump))
-	printLog(log.Debug(), span, "") // br
-	printLog(log.Debug(), span, "") // br
+	log.Ctx(ctx).Debug().Msg("Dumping response from real petasos")
+	log.Ctx(ctx).Debug().Msgf("%s", dump)
+	log.Ctx(ctx).Debug().Msg("") // br
+	log.Ctx(ctx).Debug().Msg("") // br
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -124,7 +124,7 @@ func forwarder(c echo.Context) error {
 			header = header + s
 		}
 		header = strings.TrimRight(header, ",")
-		printLog(log.Debug(), span, fmt.Sprintf("k: %s, v: %s\n", k, v))
+		log.Ctx(ctx).Debug().Msgf("k: %s, v: %s\n", k, v)
 		c.Response().Header().Set(k, header)
 	}
 
@@ -137,7 +137,7 @@ func forwarder(c echo.Context) error {
 	}
 	// Replace location header
 	location := c.Response().Header().Get("Location")
-	printLog(log.Debug(), span, fmt.Sprintf("Location [%s]\n", location))
+	log.Ctx(ctx).Debug().Msgf("Location [%s]\n", location)
 
 	locationUrl, err := url.Parse(location)
 	sentry.CaptureException(err)
@@ -168,7 +168,7 @@ func forwarder(c echo.Context) error {
 	publicTalariaURL := buildExternalURL(externalTalariaName, viper.GetString(talariaDomain))
 
 	locationUrl.Host = publicTalariaURL
-	printLog(log.Info(), span, fmt.Sprintf("redirecting from Location [%s] to Location [%s] for device name [%s] \n", location, locationUrl.String(), req.Header.Get("X-Webpa-Device-Name")))
+	log.Ctx(ctx).Info().Msgf("redirecting from Location [%s] to Location [%s] for device name [%s] \n", location, locationUrl.String(), req.Header.Get("X-Webpa-Device-Name"))
 	c.Response().Header().Set("Location", locationUrl.String())
 
 	// Replace url in body
@@ -207,11 +207,4 @@ func buildExternalURL(newTalariaName, domain string) string {
 	builder.WriteString(".")
 	builder.WriteString(domain)
 	return builder.String()
-}
-
-func printLog(event *zerolog.Event, span trace.Span, msg string) {
-	traceId := span.SpanContext().TraceID().String()
-	spanId := span.SpanContext().SpanID().String()
-	event.Str(traceIdHeader, traceId).Str(spanIdHeader, spanId).Msg(msg)
-
 }
