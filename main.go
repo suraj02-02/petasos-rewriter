@@ -11,6 +11,9 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
+	"go.opentelemetry.io/otel/propagation"
+	"net/http"
 	"net/url"
 	"os"
 	"time"
@@ -25,6 +28,7 @@ const (
 	talariaDomain                = "talaria.domain"
 	zipkinName                   = "zipkin"
 	jaegarName                   = "jaegar"
+	noopName                     = "noop"
 	traceProviderType            = "type"
 	traceProviderEndpoint        = "endpoint"
 	traceProviderSkipTraceExport = "skipTraceExport"
@@ -41,8 +45,12 @@ func init() {
 
 }
 
-var petasosURL *url.URL
-var sentryEnabled = false
+var (
+	petasosURL    *url.URL
+	sentryEnabled                               = false
+	prop          propagation.TextMapPropagator = propagation.TraceContext{}
+	client        *http.Client
+)
 
 var rootCmd = &cobra.Command{
 	Use:   "petasos-rewriter",
@@ -66,7 +74,11 @@ var rootCmd = &cobra.Command{
 		}
 
 		ConfigureSentry(viper.Sub("sentry"))
-		configureTracerProvider(viper.Sub("traceProvider"), applicationName)
+		tp, err := configureTracerProvider(viper.Sub("traceProvider"), applicationName)
+		if err != nil {
+			errz.Fatal(err, "Configuration is missing for trace provider, shutting down")
+
+		}
 
 		// Initial health check
 		log.Info().Msg("Checking if petasos is reachable")
@@ -94,11 +106,18 @@ var rootCmd = &cobra.Command{
 			sentry.CaptureMessage("Could not reach petasos, shutting down")
 		})
 		errz.Fatal(err, "Could not reach petasos, shutting down")
+		otelEchoOptions := []otelecho.Option{
+			otelecho.WithPropagators(prop),
+			otelecho.WithTracerProvider(tp),
+		}
 
+		client = configureClient(prop, tp)
 		// Setup & Start Server
 		e := echo.New()
 		e.Use(middleware.Logger())
 		e.Use(middleware.Recover())
+		e.Use(otelecho.Middleware(applicationName, otelEchoOptions...))
+		e.Use(Middleware())
 		if sentryEnabled {
 			e.Use(sentryecho.New(sentryecho.Options{
 				Repanic: true,

@@ -3,9 +3,8 @@ package main
 import (
 	"fmt"
 	"github.com/getsentry/sentry-go"
+	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/propagation"
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
@@ -22,8 +21,8 @@ var (
 	ErrNoMatchFound = fmt.Errorf("No match found")
 )
 
-// forwarder forwads requests to real petasos instance and does
-// apropriate replacements.
+// forwarder forwards requests to real petasos instance and does
+// appropriate replacements.
 func forwarder(c echo.Context) error {
 	if sentryEnabled {
 		defer sentry.Recover()
@@ -31,43 +30,33 @@ func forwarder(c echo.Context) error {
 
 	// prepare request for forwarding
 	req := c.Request()
-	var span trace.Span
 	ctx := req.Context()
-	prop := propagation.TraceContext{}
-	ctx = prop.Extract(ctx, req.Header)
-	tracer := otel.GetTracerProvider().Tracer(req.URL.Path)
-	ctx, span = tracer.Start(ctx, req.URL.Path)
-	defer span.End()
+	span := trace.SpanFromContext(ctx)
 
-	spnId, traceId := span.SpanContext().SpanID.String(), span.SpanContext().TraceID.String()
+	spanId, traceId := span.SpanContext().SpanID().String(), span.SpanContext().TraceID().String()
 	sentry.ConfigureScope(func(scope *sentry.Scope) {
-		scope.SetExtras(map[string]interface{}{"span_id": spnId, "trace_id": traceId, "X-TENANT-ID": req.Header.Get("X-TENANT-ID"), "X-Webpa-Device-Name": req.Header.Get("X-Webpa-Device-Name")})
+		scope.SetExtras(map[string]interface{}{"span_id": spanId, "trace_id": traceId, "X-TENANT-ID": req.Header.Get("X-TENANT-ID"), "X-Webpa-Device-Name": req.Header.Get("X-Webpa-Device-Name")})
 	})
-
-	c.Response().Header().Set(spanIdHeader, spnId)
-	c.Response().Header().Set(traceIdHeader, traceId)
-
-	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("##############################")
-	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("###### Request Start #########")
-	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("##############################")
 
 	// store scheme of original request
 	originalRequestScheme := req.URL.Scheme
 	if originalRequestScheme == "" {
 		originalRequestScheme = req.Header.Get("X-Forwarded-Proto")
 	}
-	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msgf("originalScheme [%s]", originalRequestScheme)
+
+	printLog(log.Debug(), span, fmt.Sprintf("originalScheme [%s]", originalRequestScheme))
 
 	// Change protocols from ws(s) => http(s).
 	// Parodus makes requests to `ws` but complains
 	// when getting a redirect containing `ws`.
 	switch originalRequestScheme {
 	case "ws":
-		log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msgf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "http")
+		printLog(log.Debug(), span, fmt.Sprintf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "http"))
+
 		originalRequestScheme = "http"
 		break
 	case "wss":
-		log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msgf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "https")
+		printLog(log.Debug(), span, fmt.Sprintf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "https"))
 		originalRequestScheme = "https"
 	}
 
@@ -76,10 +65,10 @@ func forwarder(c echo.Context) error {
 		panic(err)
 		return err
 	}
-	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("Dumping original request to petasos-rewriter")
-	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msgf("%s", dump)
-	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("") // br
-	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("") // br
+	printLog(log.Debug(), span, "Dumping original request to petasos-rewriter")
+	printLog(log.Debug(), span, fmt.Sprintf("%s", dump))
+	printLog(log.Debug(), span, "") // br
+	printLog(log.Debug(), span, "") // br
 
 	// Prepare forwarding to petasos
 	req.URL = &url.URL{
@@ -88,24 +77,15 @@ func forwarder(c echo.Context) error {
 		Path:   req.URL.Path,
 	}
 	req.RequestURI = ""
-
-	// Forward to real petasos
-	client := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	prop.Inject(ctx, req.Header)
 	dump, err = httputil.DumpRequest(req, true)
 	if err != nil {
 		panic(err)
 		return err
 	}
-	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("Dumping request to real petasos")
-	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msgf("%s", dump)
-	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("") // br
-	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("") // br
+	printLog(log.Debug(), span, "Dumping request to real petasos")
+	printLog(log.Debug(), span, fmt.Sprintf("%s", dump))
+	printLog(log.Debug(), span, "") // br
+	printLog(log.Debug(), span, "") // br
 	resp, err := client.Do(req)
 	if err != nil {
 		sentry.CaptureException(err)
@@ -119,10 +99,10 @@ func forwarder(c echo.Context) error {
 		panic(err)
 		return err
 	}
-	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("Dumping response from real petasos")
-	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msgf("%s", dump)
-	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("") // br
-	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msg("") // br
+	printLog(log.Debug(), span, "Dumping response from real petasos")
+	printLog(log.Debug(), span, fmt.Sprintf("%s", dump))
+	printLog(log.Debug(), span, "") // br
+	printLog(log.Debug(), span, "") // br
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -133,6 +113,9 @@ func forwarder(c echo.Context) error {
 
 	// just printing the all response headers which we got from actual petasos
 	for k, v := range resp.Header {
+		if k == "Traceparent" || k == "Tracestate" {
+			continue
+		}
 		var header string
 		for _, s := range v {
 			if header != "" {
@@ -141,9 +124,8 @@ func forwarder(c echo.Context) error {
 			header = header + s
 		}
 		header = strings.TrimRight(header, ",")
+		printLog(log.Debug(), span, fmt.Sprintf("k: %s, v: %s\n", k, v))
 		c.Response().Header().Set(k, header)
-
-		log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msgf("k: %s, v: %s\n", k, v)
 	}
 
 	if resp.StatusCode != http.StatusTemporaryRedirect {
@@ -151,14 +133,11 @@ func forwarder(c echo.Context) error {
 		c.Response().Writer.WriteHeader(resp.StatusCode)
 		c.Response().Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
 		c.Response().Writer.Write(body)
-		err := string(body)
-		sentry.CaptureMessage(err)
-		panic(err)
 		return nil
 	}
 	// Replace location header
 	location := c.Response().Header().Get("Location")
-	log.Debug().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msgf("Location [%s]\n", location)
+	printLog(log.Debug(), span, fmt.Sprintf("Location [%s]\n", location))
 
 	locationUrl, err := url.Parse(location)
 	sentry.CaptureException(err)
@@ -184,13 +163,12 @@ func forwarder(c echo.Context) error {
 	)
 	if err != nil {
 		sentry.CaptureException(err)
-		panic(err)
 		return err
 	}
 	publicTalariaURL := buildExternalURL(externalTalariaName, viper.GetString(talariaDomain))
 
 	locationUrl.Host = publicTalariaURL
-	log.Info().Str(traceIdHeader, traceId).Str(spanIdHeader, spnId).Msgf("redirecting from Location [%s] to Location [%s] for device name [%s] \n", location, locationUrl.String(), req.Header.Get("X-Webpa-Device-Name"))
+	printLog(log.Info(), span, fmt.Sprintf("redirecting from Location [%s] to Location [%s] for device name [%s] \n", location, locationUrl.String(), req.Header.Get("X-Webpa-Device-Name")))
 	c.Response().Header().Set("Location", locationUrl.String())
 
 	// Replace url in body
@@ -219,11 +197,6 @@ func replaceTalariaInternalName(host, old, new string) (string, error) {
 		return "", ErrNoMatchFound
 	}
 	talariaExternal := strings.Replace(host, old, new, -1)
-
-	// TODO: strip possible internal k8s namespace.
-	// xmidt-talaria OK
-	// talaria.xmidt Not OK
-
 	return talariaExternal, nil
 }
 
@@ -234,4 +207,11 @@ func buildExternalURL(newTalariaName, domain string) string {
 	builder.WriteString(".")
 	builder.WriteString(domain)
 	return builder.String()
+}
+
+func printLog(event *zerolog.Event, span trace.Span, msg string) {
+	traceId := span.SpanContext().TraceID().String()
+	spanId := span.SpanContext().SpanID().String()
+	event.Str(traceIdHeader, traceId).Str(spanIdHeader, spanId).Msg(msg)
+
 }

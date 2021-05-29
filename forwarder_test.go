@@ -119,6 +119,11 @@ func TestForwarder(t *testing.T) {
 			r := httptest.NewRequest("", "/v2/api/device", nil)
 			r.Header.Set("X-Webpa-Device-Name", record.deviceName)
 			r.Header.Set("X-Forwarded-Proto", "ws")
+			client = &http.Client{
+				CheckRedirect: func(req *http.Request, via []*http.Request) error {
+					return http.ErrUseLastResponse
+				},
+			}
 			w := httptest.NewRecorder()
 			c := e.NewContext(r, w)
 			err := forwarder(c)

@@ -7,14 +7,19 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/stdout"
 	"go.opentelemetry.io/otel/exporters/trace/jaeger"
 	"go.opentelemetry.io/otel/exporters/trace/zipkin"
-	"go.opentelemetry.io/otel/label"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/semconv"
+	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"io"
+	"net/http"
 	"os"
 	"path"
 	"strings"
@@ -102,43 +107,44 @@ func ConfigureViper(applicationName string) error {
 	return err
 }
 
-/***
- 1. will be responsible for creating the traceprovider and setting it back to  opentelemetry
-		viper will be having all the fields like  type,endpoint and skipTraceExport
- 2. supported traceProviders are zipkin,jaegar and stdout
- 3. set skipTraceExport = true if you don't want to print the span and tracer information in stdout
-*/
-func configureTracerProvider(v *viper.Viper, applicationName string) {
+// ConfigureTracerProvider creates the TracerProvider based on the configuration
+// provided. It has built-in support for jaeger, zipkin, stdout and noop providers.
+// A different provider can be used if a constructor for it is provided in the
+// config.
+// If a provider name is not provided, a stdout tracerProvider will be returned.
+func configureTracerProvider(v *viper.Viper, applicationName string) (trace.TracerProvider, error) {
 	var traceProviderName = v.GetString(traceProviderType)
-
 	switch traceProviderName {
 
 	case zipkinName:
-		err := zipkin.InstallNewPipeline(
-			v.GetString(traceProviderEndpoint),
-			applicationName,
-			zipkin.WithSDK(&sdktrace.Config{DefaultSampler: sdktrace.AlwaysSample()}),
+		traceProvider, err := zipkin.NewExportPipeline(v.GetString(traceProviderEndpoint),
+			zipkin.WithSDKOptions(
+				sdktrace.WithSampler(sdktrace.AlwaysSample()),
+				sdktrace.WithResource(
+					resource.NewWithAttributes(semconv.ServiceNameKey.String(applicationName)),
+				),
+			),
 		)
-		if err != nil {
-			log.Debug().Msg("failed to create zipkin pipeline")
-		}
-		break
+		return traceProvider, err
 	case jaegarName:
-		flush, err := jaeger.InstallNewPipeline(
+		traceProvider, _, err := jaeger.NewExportPipeline(
 			jaeger.WithCollectorEndpoint(v.GetString(traceProviderEndpoint)),
-			jaeger.WithProcess(jaeger.Process{
-				ServiceName: applicationName,
-				Tags: []label.KeyValue{
-					label.String("exporter", jaegarName),
-				},
-			}),
-			jaeger.WithSDK(&sdktrace.Config{DefaultSampler: sdktrace.AlwaysSample()}),
+			jaeger.WithSDKOptions(
+				sdktrace.WithSampler(sdktrace.AlwaysSample()),
+				sdktrace.WithResource(
+					resource.NewWithAttributes(
+						semconv.ServiceNameKey.String(applicationName),
+						attribute.String("exporter", traceProviderName),
+					),
+				),
+			),
 		)
 		if err != nil {
-			log.Debug().Msg("failed to create jaegar pipeline")
+			return nil, err
 		}
-		defer flush()
-		break
+		return traceProvider, nil
+	case noopName:
+		return trace.NewNoopTracerProvider(), nil
 	default:
 		var skipTraceExport = v.GetBool(traceProviderSkipTraceExport)
 		var option stdout.Option
@@ -149,10 +155,26 @@ func configureTracerProvider(v *viper.Viper, applicationName string) {
 		}
 		otExporter, err := stdout.NewExporter(option)
 		if err != nil {
-			log.Debug().Msg("failed to create stdout exporter")
-			return
+			return nil, err
 		}
 		traceProvider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(otExporter))
-		otel.SetTracerProvider(traceProvider)
+		return traceProvider, nil
 	}
+}
+
+func configureClient(propagators propagation.TextMapPropagator, provider trace.TracerProvider) *http.Client {
+	var transport http.RoundTripper = &http.Transport{}
+	transport = otelhttp.NewTransport(transport,
+		otelhttp.WithPropagators(propagators),
+		otelhttp.WithTracerProvider(provider),
+	)
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Transport: transport,
+	}
+	return client
+
 }
