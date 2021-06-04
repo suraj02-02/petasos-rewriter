@@ -13,7 +13,6 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog/log"
-	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -22,21 +21,13 @@ var (
 
 // forwarder forwards requests to real petasos instance and does
 // appropriate replacements.
-func forwarder(c echo.Context) error {
+func forwarder(c echo.Context, client *http.Client) error {
 	if sentryEnabled {
 		defer sentry.Recover()
 	}
 
-	// prepare request for forwarding
 	req := c.Request()
 	ctx := req.Context()
-	span := trace.SpanFromContext(ctx)
-	spanId, traceId := span.SpanContext().SpanID().String(), span.SpanContext().TraceID().String()
-	logger := log.With().Str(traceIdHeader, traceId).Str(spanIdHeader, spanId).Logger()
-	ctx = logger.WithContext(ctx)
-	sentry.ConfigureScope(func(scope *sentry.Scope) {
-		scope.SetExtras(map[string]interface{}{"span_id": spanId, "trace_id": traceId, "X-TENANT-ID": req.Header.Get("X-TENANT-ID"), "X-Webpa-Device-Name": req.Header.Get("X-Webpa-Device-Name")})
-	})
 
 	// store scheme of original request
 	originalRequestScheme := req.URL.Scheme
@@ -52,7 +43,6 @@ func forwarder(c echo.Context) error {
 	switch originalRequestScheme {
 	case "ws":
 		log.Ctx(ctx).Debug().Msgf("Replacing original scheme [%s] with [%s] in output", originalRequestScheme, "http")
-
 		originalRequestScheme = "http"
 		break
 	case "wss":

@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	"go.opentelemetry.io/otel/propagation"
-	"net/http"
 	"net/url"
 	"os"
 	"time"
@@ -47,9 +46,7 @@ func init() {
 
 var (
 	petasosURL    *url.URL
-	sentryEnabled                               = false
-	prop          propagation.TextMapPropagator = propagation.TraceContext{}
-	client        *http.Client
+	sentryEnabled = false
 )
 
 var rootCmd = &cobra.Command{
@@ -106,12 +103,13 @@ var rootCmd = &cobra.Command{
 			sentry.CaptureMessage("Could not reach petasos, shutting down")
 		})
 		errz.Fatal(err, "Could not reach petasos, shutting down")
+		prop := propagation.TraceContext{}
 		otelEchoOptions := []otelecho.Option{
 			otelecho.WithPropagators(prop),
 			otelecho.WithTracerProvider(tp),
 		}
 
-		client = configureClient(prop, tp)
+		client := configureClient(prop, tp)
 		// Setup & Start Server
 		e := echo.New()
 		e.Use(middleware.Logger())
@@ -124,7 +122,11 @@ var rootCmd = &cobra.Command{
 			}))
 
 		}
-		e.GET("/*", forwarder)
+		requestHandlerFunc := func(ctx echo.Context) error {
+			return forwarder(ctx, client)
+		}
+
+		e.GET("/*", requestHandlerFunc)
 		e.Logger.Fatal(e.Start(":" + viper.GetString(serverPort)))
 	},
 }
