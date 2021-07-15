@@ -130,8 +130,8 @@ func forwarder(c echo.Context, client *http.Client) error {
 	log.Ctx(ctx).Debug().Msgf("Location [%s]\n", location)
 
 	locationUrl, err := url.Parse(location)
-	sentry.CaptureException(err)
 	if err != nil {
+		sentry.CaptureException(err)
 		panic(err)
 		return err
 	}
