@@ -33,6 +33,7 @@ const (
 	traceProviderSkipTraceExport = "skipTraceExport"
 	spanIdHeader                 = "span-id"
 	traceIdHeader                = "trace-id"
+	remoteUpdateEndpoint         = "remoteUpdate.url"
 )
 
 func init() {
@@ -45,8 +46,10 @@ func init() {
 }
 
 var (
-	petasosURL    *url.URL
-	sentryEnabled = false
+	petasosURL                 *url.URL
+	sentryEnabled              = false
+	remoteUpdateAddressEnabled = false
+	resourceURL                *url.URL
 )
 
 var rootCmd = &cobra.Command{
@@ -71,6 +74,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		ConfigureSentry(viper.Sub("sentry"))
+
 		tp, err := configureTracerProvider(viper.Sub("traceProvider"), applicationName)
 		if err != nil {
 			errz.Fatal(err, "Configuration is missing for trace provider, shutting down")
@@ -107,6 +111,15 @@ var rootCmd = &cobra.Command{
 		otelEchoOptions := []otelecho.Option{
 			otelecho.WithPropagators(prop),
 			otelecho.WithTracerProvider(tp),
+		}
+
+		remoteUpdateAddressEnabled = viper.GetBool("remoteUpdate.enable")
+		if remoteUpdateAddressEnabled {
+			resourceURL, err = url.Parse(viper.GetString(remoteUpdateEndpoint))
+			if err != nil {
+				log.Error().Msg(err.Error())
+				remoteUpdateAddressEnabled = false
+			}
 		}
 
 		client := configureClient(prop, tp)

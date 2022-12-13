@@ -9,7 +9,7 @@ server:
 
 #Petasos endpoint, usually private
 petasos:
-  endpoint: http://localhost:6400
+  endpoint: http://192.168.100.128:6400
 
 talaria:
   # Replacement candidate with talaria.external
@@ -56,3 +56,13 @@ traceProvider:
   endpoint:
   # If true will  skip  exporting of the trace information to stdout
   skipTraceExport: false
+
+# Remote update information. Currently, this is specific to updating resource's IP address
+# For running tests on local, set enable as true and url as empty
+remoteUpdate:
+  # If enable is true, only then update resource's IP address
+  enable: false
+  # Endpoint with URI path to update resource's IP address
+  # if url is abc.com/v1/resource then, final url will be abc.com/v1/resource/11:22:33:44:55:66
+  url: localhost:9090/resource
+

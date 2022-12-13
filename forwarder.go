@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/getsentry/sentry-go"
 	"github.com/spf13/viper"
@@ -59,6 +61,14 @@ func forwarder(c echo.Context, client *http.Client) error {
 	log.Ctx(ctx).Debug().Msgf("%s", dump)
 	log.Ctx(ctx).Debug().Msg("") // br
 	log.Ctx(ctx).Debug().Msg("") // br
+
+	if remoteUpdateAddressEnabled {
+		log.Ctx(ctx).Info().Msg("updating resource's IP address")
+		err := updateResourceIpAddress(req, client, resourceURL)
+		if err != nil {
+			log.Ctx(ctx).Error().Msg(err.Error())
+		}
+	}
 
 	// Prepare forwarding to petasos
 	req.URL = &url.URL{
@@ -197,4 +207,38 @@ func buildExternalURL(newTalariaName, domain string) string {
 	builder.WriteString(".")
 	builder.WriteString(domain)
 	return builder.String()
+}
+
+func updateResourceIpAddress(req *http.Request, client *http.Client, resourceURL *url.URL) error {
+	requestBody := UpdateResourceRequest{
+		IpAddress: req.Header.Get("X-REAL-IP"),
+	}
+	cpeIdentifier := req.Header.Get("X-DEVICE-CN")
+
+	jsonBytes, err := json.Marshal(requestBody)
+	if err != nil {
+		return err
+	}
+	//resourceURL = abc.com/v1/resource/macAddress
+
+	finalUrl := resourceURL.String() + "/" + cpeIdentifier
+
+	request, err := http.NewRequest(http.MethodPut, finalUrl, bytes.NewReader(jsonBytes))
+	if err != nil {
+		return err
+	}
+	request.Header.Add("Content-Type", "application/json")
+	request.Header.Set("ENVIRONMENT", req.Header.Get("ENVIRONMENT"))
+	request.Header.Set("X-TENANT-ID", req.Header.Get("X-TENANT-ID"))
+	resp, err := client.Do(request)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("status code received while updating resource's ip address via petasos rewriter %d", resp.StatusCode)
+	}
+
+	return nil
 }
