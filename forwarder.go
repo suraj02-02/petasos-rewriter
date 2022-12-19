@@ -213,7 +213,7 @@ func updateResourceIpAddress(req *http.Request, client *http.Client, resourceURL
 	requestBody := UpdateResourceRequest{
 		IpAddress: req.Header.Get("X-REAL-IP"),
 	}
-	cpeIdentifier := req.Header.Get("X-DEVICE-CN")
+	cpeIdentifier := strings.ToLower(req.Header.Get("X-DEVICE-CN"))
 
 	jsonBytes, err := json.Marshal(requestBody)
 	if err != nil {
