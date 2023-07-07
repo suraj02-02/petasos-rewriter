@@ -66,3 +66,21 @@ remoteUpdate:
   # if url is abc.com/v1/resource then, final url will be abc.com/v1/resource/11:22:33:44:55:66
   url: localhost:9090/resource
 
+# metricsOptions provides the details needed to configure the prometheus
+# metric data.  Metrics generally have the form:
+#
+# {namespace}_{subsystem}_{metric}
+#
+# so if you use the suggested value below, your metrics are prefixed like
+# this:
+#
+# xmidt_petasos_rewriter_{metric}
+#
+# (Optional)
+metricsOptions:
+  # namespace is the namespace of the metrics provided
+  # (Optional)
+  namespace: xmidt
+  # subsystem is the subsystem of the metrics provided
+  # (Optional)
+  subsystem: petasos_rewriter

@@ -7,6 +7,7 @@ require (
 	github.com/benchkram/errz v0.0.0-20180520163740-571a80a661f2
 	github.com/getsentry/sentry-go v0.9.0
 	github.com/labstack/echo/v4 v4.2.2
+	github.com/prometheus/client_golang v0.9.3
 	github.com/rs/zerolog v1.19.0
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.4.0
