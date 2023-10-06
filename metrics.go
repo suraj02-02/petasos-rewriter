@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
@@ -18,17 +19,27 @@ type metricRegistry struct {
 }
 
 func provideMetrics(e *echo.Echo) {
+	metrics := echo.New()
+	metrics.Use(middleware.Logger())
+	metrics.Use(middleware.Recover())
+
 	mr := registerMetrics()
 
 	if err := prometheus.Register(mr.TotalRequests); err != nil {
-		e.Logger.Fatal(err)
+		metrics.Logger.Fatal(err)
 	}
 	if err := prometheus.Register(mr.ServerRequestDuration); err != nil {
-		e.Logger.Fatal(err)
+		metrics.Logger.Fatal(err)
 	}
 
+	metrics.Use(mr.getMiddleware())
+	metrics.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
+
+	go func() {
+		metrics.Logger.Fatal(metrics.Start(":" + viper.GetString(metricsServerPort)))
+	}()
+
 	e.Use(mr.getMiddleware())
-	e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 }
 
 func registerMetrics() *metricRegistry {

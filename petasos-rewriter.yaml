@@ -78,6 +78,8 @@ remoteUpdate:
 #
 # (Optional)
 metricsOptions:
+  # port on which metrics will be running
+  port: 1324
   # namespace is the namespace of the metrics provided
   # (Optional)
   namespace: xmidt

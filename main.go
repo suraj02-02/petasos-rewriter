@@ -35,6 +35,7 @@ const (
 	spanIdHeader                 = "span-id"
 	traceIdHeader                = "trace-id"
 	remoteUpdateEndpoint         = "remoteUpdate.url"
+	metricsServerPort            = "metricsOptions.port"
 )
 
 func init() {
