@@ -7,6 +7,14 @@ server:
   # If set, all redirects will use this scheme [http, https]
   fixedScheme:
 
+  # Verify the presence of the Authorization header in requests that are redirected to Talaria
+  authHeader:
+    check:
+      # If enabled, the request will be rejected if the Authorization header is not present
+      enabled: true
+      # The request path where the presence of the Authorization header is to be checked
+      requestPath: api
+
 #Petasos endpoint, usually private
 petasos:
   endpoint: http://192.168.100.128:6400

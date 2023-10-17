@@ -32,6 +32,11 @@ func forwarder(c echo.Context, client *http.Client) error {
 	req := c.Request()
 	ctx := req.Context()
 
+	if isAuthHeaderCheckEnabled && len(c.Request().Header.Get("Authorization")) == 0 {
+		log.Ctx(ctx).Error().Msg("authorization header not provided")
+		return c.JSON(http.StatusBadRequest, echo.NewHTTPError(http.StatusBadRequest, "authorization header not provided"))
+	}
+
 	// store scheme of original request
 	originalRequestScheme := req.URL.Scheme
 	if originalRequestScheme == "" {

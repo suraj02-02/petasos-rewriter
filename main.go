@@ -52,6 +52,8 @@ var (
 	sentryEnabled              = false
 	remoteUpdateAddressEnabled = false
 	resourceURL                *url.URL
+	isAuthHeaderCheckEnabled   = false
+	authHeaderCheckRequestPath = ""
 )
 
 var rootCmd = &cobra.Command{
@@ -61,6 +63,9 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		printConfig()
 		logging(viper.Sub("log"))
+
+		isAuthHeaderCheckEnabled = viper.GetBool("server.authHeader.check.enabled")
+		authHeaderCheckRequestPath = viper.GetString("server.authHeader.check.requestPath")
 
 		var err error
 		petasosURL, err = url.Parse(viper.GetString(petasosEndpoint))
