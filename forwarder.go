@@ -18,6 +18,11 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+const (
+	certificateProviderHeader = "X-CERTIFICATE-PROVIDER"
+	expiryDateHeader          = "X-EXPIRY-DATE"
+)
+
 var (
 	ErrNoMatchFound = fmt.Errorf("No match found")
 )
@@ -69,8 +74,8 @@ func forwarder(c echo.Context, client *http.Client) error {
 	log.Ctx(ctx).Debug().Msg("") // br
 
 	if remoteUpdateAddressEnabled {
-		log.Ctx(ctx).Info().Msg("updating resource's IP address")
-		err := updateResourceIpAddress(req, client, resourceURL)
+		log.Ctx(ctx).Info().Msg("updating resource's IP address and certificate information")
+		err := updateResourceIpAddressAndCertificateInfo(req, client, resourceURL)
 		if err != nil {
 			log.Ctx(ctx).Error().Msg(err.Error())
 		}
@@ -215,18 +220,25 @@ func buildExternalURL(newTalariaName, domain string) string {
 	return builder.String()
 }
 
-func updateResourceIpAddress(req *http.Request, client *http.Client, resourceURL *url.URL) error {
-	requestBody := UpdateResourceRequest{
-		IpAddress: req.Header.Get("X-REAL-IP"),
-	}
-	cpeIdentifier := strings.ToLower(req.Header.Get("X-DEVICE-CN"))
+/*
+ * Extracts IP address, certificate provider, and expiry details from HTTP request headers.
+ * Calls the RI API with this information.
+ */
+func updateResourceIpAddressAndCertificateInfo(req *http.Request, client *http.Client, resourceURL *url.URL) error {
 
+	requestBody := UpdateResourceRequest{
+		IpAddress:               req.Header.Get("X-REAL-IP"),
+		CertificateProviderType: req.Header.Get(certificateProviderHeader),
+		CertificateExpiryDate:   req.Header.Get(expiryDateHeader),
+	}
+
+	cpeIdentifier := strings.ToLower(req.Header.Get("X-DEVICE-CN"))
 	jsonBytes, err := json.Marshal(requestBody)
 	if err != nil {
 		return err
 	}
-	//resourceURL = abc.com/v1/resource/macAddress
 
+	//resourceURL = abc.com/v1/resource/macAddress
 	finalUrl := resourceURL.String() + "/" + cpeIdentifier
 
 	request, err := http.NewRequest(http.MethodPut, finalUrl, bytes.NewReader(jsonBytes))
