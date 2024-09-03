@@ -19,8 +19,10 @@ import (
 )
 
 const (
-	certificateProviderHeader = "X-CERTIFICATE-PROVIDER"
-	expiryDateHeader          = "X-EXPIRY-DATE"
+	certificateProviderHeader = "X-Issuer-CN"
+	expiryDateHeader          = "X-Cert-Expiry-Date"
+	realIpHeader              = "X-REAL-IP"
+	deviceCNHeader            = "X-DEVICE-CN"
 )
 
 var (
@@ -227,12 +229,14 @@ func buildExternalURL(newTalariaName, domain string) string {
 func updateResourceIpAddressAndCertificateInfo(req *http.Request, client *http.Client, resourceURL *url.URL) error {
 
 	requestBody := UpdateResourceRequest{
-		IpAddress:               req.Header.Get("X-REAL-IP"),
+		IpAddress:               req.Header.Get(realIpHeader),
 		CertificateProviderType: req.Header.Get(certificateProviderHeader),
 		CertificateExpiryDate:   req.Header.Get(expiryDateHeader),
 	}
 
-	cpeIdentifier := strings.ToLower(req.Header.Get("X-DEVICE-CN"))
+	log.Ctx(req.Context()).Debug().Msgf("Certificate Provider type : [%s]", requestBody.CertificateProviderType)
+	log.Ctx(req.Context()).Debug().Msgf("Certificate expiry type : [%s]", requestBody.CertificateExpiryDate)
+	cpeIdentifier := strings.ToLower(req.Header.Get(deviceCNHeader))
 	jsonBytes, err := json.Marshal(requestBody)
 	if err != nil {
 		return err
