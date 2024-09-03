@@ -234,8 +234,7 @@ func updateResourceIpAddressAndCertificateInfo(req *http.Request, client *http.C
 		CertificateExpiryDate:   req.Header.Get(expiryDateHeader),
 	}
 
-	log.Ctx(req.Context()).Info().Msgf("Certificate Provider type : [%s]", requestBody.CertificateProviderType)
-	log.Ctx(req.Context()).Info().Msgf("Certificate expiry type : [%s]", requestBody.CertificateExpiryDate)
+	log.Ctx(req.Context()).Info().Msgf("Certificate Provider type : [%s], Certificate expiry type : [%s]", requestBody.CertificateProviderType, requestBody.CertificateExpiryDate)
 	cpeIdentifier := strings.ToLower(req.Header.Get(deviceCNHeader))
 	jsonBytes, err := json.Marshal(requestBody)
 	if err != nil {
