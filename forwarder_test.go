@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestReplaceTalariaInternalName(t *testing.T) {
@@ -126,10 +127,53 @@ func TestForwarder(t *testing.T) {
 			}
 			w := httptest.NewRecorder()
 			c := e.NewContext(r, w)
-			err := forwarder(c,client)
+			err := forwarder(c, client)
 			assert.Nil(err)
 
 		})
 	}
 
+}
+
+func TestUpdateResourceIpAddressAndCertificateInfo(t *testing.T) {
+
+	assert := assert.New(t)
+	realIP := "127.0.0.1"
+	certificateProvider := "TestProvider"
+	expiryDate := "Sep 19 23:59:59 2031 GMT"
+	expectedRequestBody := `{"ipAddress":"127.0.0.1","certificateProviderType":"TestProvider","certificateExpiryDate":"Sep 19 23:59:59 2031 GMT"}`
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		assert.Equal(http.MethodPut, r.Method)
+		requestBody, err := io.ReadAll(r.Body)
+		assert.NoError(err)
+		assert.JSONEq(expectedRequestBody, string(requestBody))
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	defer mockServer.Close()
+
+	testReq, err := http.NewRequest(http.MethodPut, "/", nil)
+	assert.NoError(err)
+	testReq.Header.Set(realIpHeader, realIP)
+	testReq.Header.Set(certificateProviderHeader, certificateProvider)
+	testReq.Header.Set(expiryDateHeader, expiryDate)
+	testReq.Header.Set(deviceCNHeader, "TestCPE")
+	testReq.Header.Set("ENVIRONMENT", "test")
+	testReq.Header.Set("X-TENANT-ID", "12345")
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy: func(req *http.Request) (*url.URL, error) {
+				return url.Parse(mockServer.URL)
+			},
+		},
+	}
+
+	resourceURL, err := url.Parse(mockServer.URL + "/v1/resource/macAddress")
+	assert.NoError(err)
+
+	err = updateResourceIpAddressAndCertificateInfo(testReq, client, resourceURL)
+	assert.NoError(err)
 }
