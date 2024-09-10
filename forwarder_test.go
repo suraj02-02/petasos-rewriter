@@ -176,6 +176,15 @@ func TestUpdateResourceIpAddressAndCertificateInfo(t *testing.T) {
 			expectedRequestBody: `{"ipAddress":"127.0.0.1","certificateProviderType":"DTSECURITY","certificateExpiryDate":""}`,
 			expectedStatus:      http.StatusOK,
 		},
+		// Negative case incase of some unexpected behaviour
+		{
+			realIP:              "127.0.0.1",
+			certificateProvider: "DTSECURITY",
+			expiryDate:          "Sep 19 23:59:59 2031 GMT",
+			deviceCN:            "TestCPE",
+			expectedRequestBody: `{"ipAddress":"127.0.0.1","certificateProviderType":"DTSECURITY","certificateExpiryDate":"Sep 19 23:59:59 2031 GMT"}`,
+			expectedStatus:      http.StatusInternalServerError,
+		},
 	}
 
 	for i, tt := range testsData {
@@ -213,7 +222,11 @@ func TestUpdateResourceIpAddressAndCertificateInfo(t *testing.T) {
 			assert.NoError(err)
 
 			err = updateResourceIpAddressAndCertificateInfo(testReq, client, resourceURL)
-			assert.NoError(err)
+			if tt.expectedStatus != http.StatusOK {
+				assert.Error(err)
+			} else {
+				assert.NoError(err)
+			}
 		})
 	}
 }
