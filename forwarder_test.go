@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestReplaceTalariaInternalName(t *testing.T) {
@@ -126,10 +127,106 @@ func TestForwarder(t *testing.T) {
 			}
 			w := httptest.NewRecorder()
 			c := e.NewContext(r, w)
-			err := forwarder(c,client)
+			err := forwarder(c, client)
 			assert.Nil(err)
 
 		})
 	}
 
+}
+
+func TestUpdateResourceIpAddressAndCertificateInfo(t *testing.T) {
+	testsData := []struct {
+		realIP              string
+		certificateProvider string
+		expiryDate          string
+		deviceCN            string
+		expectedRequestBody string
+		expectedStatus      int
+	}{
+		{
+			realIP:              "127.0.0.1",
+			certificateProvider: "DTSECURITY",
+			expiryDate:          "Sep 19 23:59:59 2031 GMT",
+			deviceCN:            "TestCPE",
+			expectedRequestBody: `{"ipAddress":"127.0.0.1","certificateProviderType":"DTSECURITY","certificateExpiryDate":"Sep 19 23:59:59 2031 GMT"}`,
+			expectedStatus:      http.StatusOK,
+		},
+		{
+			realIP:              "",
+			certificateProvider: "IRDETO",
+			expiryDate:          "Dec 31 23:59:59 2025 GMT",
+			deviceCN:            "TestCPE",
+			expectedRequestBody: `{"ipAddress":"","certificateProviderType":"IRDETO","certificateExpiryDate":"Dec 31 23:59:59 2025 GMT"}`,
+			expectedStatus:      http.StatusOK,
+		},
+		{
+			realIP:              "127.0.0.1",
+			certificateProvider: "",
+			expiryDate:          "Dec 31 23:59:59 2025 GMT",
+			deviceCN:            "TestCPE",
+			expectedRequestBody: `{"ipAddress":"127.0.0.1","certificateProviderType":"","certificateExpiryDate":"Dec 31 23:59:59 2025 GMT"}`,
+			expectedStatus:      http.StatusOK,
+		},
+		{
+			realIP:              "127.0.0.1",
+			certificateProvider: "DTSECURITY",
+			expiryDate:          "",
+			deviceCN:            "TestCPE",
+			expectedRequestBody: `{"ipAddress":"127.0.0.1","certificateProviderType":"DTSECURITY","certificateExpiryDate":""}`,
+			expectedStatus:      http.StatusOK,
+		},
+		// Negative case incase of some unexpected behaviour
+		{
+			realIP:              "127.0.0.1",
+			certificateProvider: "DTSECURITY",
+			expiryDate:          "Sep 19 23:59:59 2031 GMT",
+			deviceCN:            "TestCPE",
+			expectedRequestBody: `{"ipAddress":"127.0.0.1","certificateProviderType":"DTSECURITY","certificateExpiryDate":"Sep 19 23:59:59 2031 GMT"}`,
+			expectedStatus:      http.StatusInternalServerError,
+		},
+	}
+
+	for i, tt := range testsData {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			assert := assert.New(t)
+
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(http.MethodPut, r.Method)
+				requestBody, err := io.ReadAll(r.Body)
+				assert.NoError(err)
+				assert.JSONEq(tt.expectedRequestBody, string(requestBody))
+				w.WriteHeader(tt.expectedStatus)
+			}))
+
+			defer mockServer.Close()
+
+			testReq, err := http.NewRequest(http.MethodPut, "/", nil)
+			assert.NoError(err)
+			testReq.Header.Set(realIpHeader, tt.realIP)
+			testReq.Header.Set(certificateProviderHeader, tt.certificateProvider)
+			testReq.Header.Set(expiryDateHeader, tt.expiryDate)
+			testReq.Header.Set(deviceCNHeader, tt.deviceCN)
+			testReq.Header.Set("ENVIRONMENT", "test")
+			testReq.Header.Set("X-TENANT-ID", "12345")
+
+			client := &http.Client{
+				Transport: &http.Transport{
+					Proxy: func(req *http.Request) (*url.URL, error) {
+						return url.Parse(mockServer.URL)
+					},
+				},
+			}
+
+			resourceURL, err := url.Parse(mockServer.URL + "/v1/resource/macAddress")
+			assert.NoError(err)
+
+			err = updateResourceIpAddressAndCertificateInfo(testReq, client, resourceURL)
+			if tt.expectedStatus != http.StatusOK {
+				assert.Error(err)
+			} else {
+				assert.NoError(err)
+			}
+		})
+	}
 }
