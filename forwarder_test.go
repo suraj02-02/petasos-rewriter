@@ -154,7 +154,7 @@ func TestUpdateResourceIpAddressAndCertificateInfo(t *testing.T) {
 		},
 		{
 			realIP:              "",
-			certificateProvider: "IRDETO",
+			certificateProvider: "C2 CertProvider",
 			expiryDate:          "Dec 31 23:59:59 2025 GMT",
 			deviceCN:            "TestCPE",
 			expectedRequestBody: `{"ipAddress":"","certificateProviderType":"IRDETO","certificateExpiryDate":"Dec 31 23:59:59 2025 GMT"}`,
@@ -162,10 +162,10 @@ func TestUpdateResourceIpAddressAndCertificateInfo(t *testing.T) {
 		},
 		{
 			realIP:              "127.0.0.1",
-			certificateProvider: "",
+			certificateProvider: "CertProvider",
 			expiryDate:          "Dec 31 23:59:59 2025 GMT",
 			deviceCN:            "TestCPE",
-			expectedRequestBody: `{"ipAddress":"127.0.0.1","certificateProviderType":"","certificateExpiryDate":"Dec 31 23:59:59 2025 GMT"}`,
+			expectedRequestBody: `{"ipAddress":"127.0.0.1","certificateProviderType":"DTSECURITY","certificateExpiryDate":"Dec 31 23:59:59 2025 GMT"}`,
 			expectedStatus:      http.StatusOK,
 		},
 		{
