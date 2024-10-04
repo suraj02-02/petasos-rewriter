@@ -228,9 +228,15 @@ func buildExternalURL(newTalariaName, domain string) string {
  */
 func updateResourceIpAddressAndCertificateInfo(req *http.Request, client *http.Client, resourceURL *url.URL) error {
 
+	var certificateProviderRaw = req.Header.Get(certificateProviderHeader)
+	var providerType = "DTSECURITY"
+	if strings.Contains(certificateProviderRaw, "C2") {
+		providerType = "IRDETO"
+	}
+
 	requestBody := UpdateResourceRequest{
 		IpAddress:               req.Header.Get(realIpHeader),
-		CertificateProviderType: req.Header.Get(certificateProviderHeader),
+		CertificateProviderType: providerType,
 		CertificateExpiryDate:   req.Header.Get(expiryDateHeader),
 	}
 
