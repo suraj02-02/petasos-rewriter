@@ -151,7 +151,7 @@ func TestUpdateResourceDetails(t *testing.T) {
 			certificateExpiryDate:             "Sep 19 23:59:59 2031 GMT",
 			deviceCN:                          "TestCPE",
 			webpaConveyHeader:                 "eyJody1tb2RlbCI6IlwiRkdBMjIzM1wiIiwiaHctc2VyaWFsLW51bWJlciI6IjIyMzNBRENNTCIsImh3LW1hbnVmYWN0dXJlciI6IlwiVGVjaG5pY29sb3JcIiIsImZ3LW5hbWUiOiIwMDUuMDMzLjAwMSIsImJvb3QtdGltZSI6MTcyNTAwMDYwOCwid2VicGEtcHJvdG9jb2wiOiJQQVJPRFVTLTIuMC02MWIxYTdhIiwid2VicGEtaW50ZXJmYWNlLXVzZWQiOiJlcm91dGVyMCIsImh3LWxhc3QtcmVib290LXJlYXNvbiI6InVua25vd24iLCJ3ZWJwYS1sYXN0LXJlY29ubmVjdC1yZWFzb24iOiJTU0xfU29ja2V0X0Nsb3NlIn0=",
-			expectedUpdateResourceRequestBody: `{"ipAddress":"127.0.0.1","certificateProviderType":"DTSECURITY","certificateExpiryDate":"Sep 19 23:59:59 2031 GMT","lastRebootReason":"unknown","wanInterfaceUsed":"erouter0","lastReconnectReason":"SSL_Socket_Close","managementProtocol":"PARODUS-2.0-61b1a7a","lastBootTime":1.725000608e+09,"firmwareVersion":"005.033.001"}`,
+			expectedUpdateResourceRequestBody: `{"ipAddress":"127.0.0.1","certificateProviderType":"DTSECURITY","certificateExpiryDate":"Sep 19 23:59:59 2031 GMT","lastRebootReason":"unknown","wanInterfaceUsed":"erouter0","lastReconnectReason":"SSL_Socket_Close","managementProtocol":"PARODUS-2.0-61b1a7a","lastBootTime":"2024-08-30T12:20:08+05:30","firmwareVersion":"005.033.001"}`,
 			expectedStatus:                    http.StatusOK,
 		},
 		{
@@ -161,7 +161,7 @@ func TestUpdateResourceDetails(t *testing.T) {
 			certificateExpiryDate:             "Dec 31 23:59:59 2025 GMT",
 			deviceCN:                          "TestCPE",
 			webpaConveyHeader:                 "eyJody1tb2RlbCI6IlwiQ2hhcmFjdGVyMS5NRSIsImh3LW1hbnVmYWN0dXJlciI6IlwiU3RhcHRvbXNcIiIsImJvb3QtdGltZSI6MTY2NzkwMDAwMCwid2VicGEtcHJvdG9jb2wiOiJQQVJPRFVTLTEuMC0xYjJhZDU3MCIsIndlYnBhLWFuZGVyeWRlLXNlY3RvciI6InRlc3RfcHJvdG90YWN0dXJlIiwiZ3VhZ2UtdHlwZSI6InVua25vd24ifQ==",
-			expectedUpdateResourceRequestBody: `{"ipAddress":"","certificateProviderType":"IRDETO","certificateExpiryDate":"Dec 31 23:59:59 2025 GMT","managementProtocol":"PARODUS-1.0-1b2ad570","lastBootTime":1.6679e+09}`,
+			expectedUpdateResourceRequestBody: `{"ipAddress":"","certificateProviderType":"IRDETO","certificateExpiryDate":"Dec 31 23:59:59 2025 GMT","managementProtocol":"PARODUS-1.0-1b2ad570","lastBootTime":"2022-11-08T15:03:20+05:30"}`,
 			expectedStatus:                    http.StatusOK,
 		},
 		{
@@ -171,7 +171,7 @@ func TestUpdateResourceDetails(t *testing.T) {
 			certificateExpiryDate:             "Dec 31 23:59:59 2025 GMT",
 			deviceCN:                          "TestCPE",
 			webpaConveyHeader:                 "eyJody1tb2RlbCI6IlwiQ2hhcmFjdGVyMS5MRSIsImh3LW1hbnVmYWN0dXJlciI6IlwiVGVjaG5pY29sb3JcIiIsImZ3LW5hbWUiOiIwMDUuMDMzLjAwMSIsImJvb3QtdGltZSI6MTY2NzkwMDAwMCwid2VicGEtcHJvdG9jb2wiOiJQQVJPRFVTLTEuMC0xYjJhZDU3MCIsIndlYnBhLWFuZGVyeWRlLXNlY3RvciI6InRlc3RfcHJvdG90YWN0dXVyZSIsImh3LWxhc3QtcmVib290LXJlYXNvbiI6InVua25vd24ifQ==",
-			expectedUpdateResourceRequestBody: `{"ipAddress":"127.0.0.1","certificateProviderType":"DTSECURITY","certificateExpiryDate":"Dec 31 23:59:59 2025 GMT","lastRebootReason":"unknown","managementProtocol":"PARODUS-1.0-1b2ad570","lastBootTime":1.6679e+09,"firmwareVersion":"005.033.001"}`,
+			expectedUpdateResourceRequestBody: `{"ipAddress":"127.0.0.1","certificateProviderType":"DTSECURITY","certificateExpiryDate":"Dec 31 23:59:59 2025 GMT","lastRebootReason":"unknown","managementProtocol":"PARODUS-1.0-1b2ad570","lastBootTime":"2022-11-08T15:03:20+05:30","firmwareVersion":"005.033.001"}`,
 			expectedStatus:                    http.StatusOK,
 		},
 		{
@@ -181,7 +181,7 @@ func TestUpdateResourceDetails(t *testing.T) {
 			certificateExpiryDate:             "",
 			deviceCN:                          "TestCPE",
 			webpaConveyHeader:                 "eyJody1tb2RlbCI6IlwiRkdBMjIzM1wiIiwiaHctc2VyaWFsLW51bWJlciI6IjIyMzNBRENNTCIsImh3LW1hbnVmYWN0dXJlciI6IlwiVGVjaG5pY29sb3JcIiIsImZ3LW5hbWUiOiIwMDUuMDMzLjAwMSIsImJvb3QtdGltZSI6MTcyNTAwMDYwOCwid2VicGEtcHJvdG9jb2wiOiJQQVJPRFVTLTIuMC02MWIxYTdhIiwid2VicGEtaW50ZXJmYWNlLXVzZWQiOiJlcm91dGVyMCIsImh3LWxhc3QtcmVib290LXJlYXNvbiI6InVua25vd24ifQ==",
-			expectedUpdateResourceRequestBody: `{"ipAddress":"127.0.0.1","certificateProviderType":"DTSECURITY","certificateExpiryDate":"","lastRebootReason":"unknown","wanInterfaceUsed":"erouter0","managementProtocol":"PARODUS-2.0-61b1a7a","lastBootTime":1.725000608e+09,"firmwareVersion":"005.033.001"}`,
+			expectedUpdateResourceRequestBody: `{"ipAddress":"127.0.0.1","certificateProviderType":"DTSECURITY","certificateExpiryDate":"","lastRebootReason":"unknown","wanInterfaceUsed":"erouter0","managementProtocol":"PARODUS-2.0-61b1a7a","lastBootTime":"2024-08-30T12:20:08+05:30","firmwareVersion":"005.033.001"}`,
 			expectedStatus:                    http.StatusOK,
 		},
 		{
